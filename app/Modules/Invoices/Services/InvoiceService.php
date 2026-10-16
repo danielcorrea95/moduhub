@@ -21,6 +21,7 @@ use App\Modules\Invoices\Services\Sefin\SefinUnavailableException;
 use App\Platform\Contracts\WebhookDispatcherContract;
 use DOMDocument;
 use DOMElement;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -36,6 +37,7 @@ class InvoiceService implements InvoiceServiceContract
         protected XmlSigner $signer,
         protected XmlSchemaValidator $schema,
         protected WebhookDispatcherContract $webhooks,
+        protected ServiceCodeChecker $serviceCodes,
     ) {}
 
     public function issue(Tenant $tenant, ?User $creator, array $data): Invoice
@@ -48,6 +50,8 @@ class InvoiceService implements InvoiceServiceContract
 
         $issuer = $this->readyIssuer();
         $credentials = $this->credentials->load($issuer);
+        // Antes de reservar o número: código sem parametrização no município seria rejeitado com E0312.
+        $this->serviceCodes->assertIssuable($issuer, $data['service'], Carbon::parse($data['competence_date'] ?? now()->toDateString()));
 
         $invoice = DB::transaction(function () use ($tenant, $creator, $data, $issuer, $credentials) {
             $locked = $this->issuers->lockForNumbering($issuer);

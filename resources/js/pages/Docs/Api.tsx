@@ -1055,6 +1055,11 @@ export default function ApiDocs({ baseUrl, scopes, events, rateLimitPerMinute }:
                             NFS-e Paulistana) não serve aqui. Confirme com o contador do emitente o código nacional e o desdobramento usados nas
                             notas dele.
                         </p>
+                        <p>
+                            Para não gastar uma DPS com isso, o Moduhub consulta os parâmetros do município no ADN antes de enviar. Se o código
+                            não estiver parametrizado na competência, a resposta é 422 com o motivo em <C>errors[&quot;service.national_tax_code&quot;]</C>,
+                            sem nada enviado à Sefin. Se o ADN não responder, a emissão segue normalmente.
+                        </p>
                     </Callout>
                 </Endpoint>
 

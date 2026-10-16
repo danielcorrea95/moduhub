@@ -4,16 +4,14 @@ namespace App\Modules\Invoices\Services\Sefin;
 
 use App\Modules\Invoices\Contracts\SefinClientContract;
 use App\Modules\Invoices\Models\Issuer;
-use App\Modules\Invoices\Services\Nfse\IssuerCredentialsLoader;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 class SefinHttpClient implements SefinClientContract
 {
-    public function __construct(protected IssuerCredentialsLoader $credentials) {}
+    public function __construct(protected IssuerHttp $http) {}
 
     public function emit(Issuer $issuer, string $signedDpsXml): SefinResponse
     {
@@ -50,25 +48,10 @@ class SefinHttpClient implements SefinClientContract
     /** @param  callable(PendingRequest): Response  $send */
     protected function call(Issuer $issuer, callable $send): Response
     {
-        $credentials = $this->credentials->load($issuer);
-
-        // O Guzzle só aceita certificado de cliente por caminho de arquivo. Os PEM vivem o tempo da chamada.
-        $certPath = $this->tempFile($credentials->certificatePem.implode('', $credentials->chainPem));
-        $keyPath = $this->tempFile($credentials->privateKeyPem);
-
         try {
-            $http = Http::baseUrl($this->baseUrl($issuer))
-                ->acceptJson()
-                ->asJson()
-                ->timeout((int) config('invoices.timeout', 30))
-                ->withOptions(['cert' => $certPath, 'ssl_key' => $keyPath]);
-
-            $response = $send($http);
+            $response = $this->http->send($issuer, $this->baseUrl($issuer), (int) config('invoices.timeout', 30), $send);
         } catch (ConnectionException $e) {
             throw new SefinUnavailableException('Sem resposta da Sefin Nacional: '.$e->getMessage(), previous: $e);
-        } finally {
-            @unlink($certPath);
-            @unlink($keyPath);
         }
 
         if ($response->serverError() || $response->status() === 0) {
@@ -169,14 +152,5 @@ class SefinHttpClient implements SefinClientContract
         $xml = @gzdecode($binary);
 
         return $xml === false ? null : $xml;
-    }
-
-    protected function tempFile(string $contents): string
-    {
-        $path = tempnam(sys_get_temp_dir(), 'mdhb_nfse_');
-        chmod($path, 0600);
-        file_put_contents($path, $contents);
-
-        return $path;
     }
 }

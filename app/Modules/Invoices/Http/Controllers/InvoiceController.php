@@ -7,13 +7,16 @@ use App\Modules\Invoices\Contracts\InvoiceRepositoryContract;
 use App\Modules\Invoices\Contracts\InvoiceServiceContract;
 use App\Modules\Invoices\Contracts\IssuerRepositoryContract;
 use App\Modules\Invoices\Http\Requests\CancelInvoiceRequest;
+use App\Modules\Invoices\Http\Requests\CheckServiceCodeRequest;
 use App\Modules\Invoices\Http\Requests\IssueInvoiceRequest;
 use App\Modules\Invoices\Http\Requests\ListInvoicesRequest;
 use App\Modules\Invoices\Http\Resources\InvoiceResource;
 use App\Modules\Invoices\Models\Invoice;
 use App\Modules\Invoices\Models\Issuer;
 use App\Modules\Invoices\Services\Danfse\DanfseGenerator;
+use App\Modules\Invoices\Services\ServiceCodeChecker;
 use App\Tenancy\CurrentTenant;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response as HttpResponse;
@@ -147,6 +150,30 @@ class InvoiceController extends Controller
         return response($invoice->nfse_xml, 200, [
             'Content-Type' => 'application/xml; charset=UTF-8',
             'Content-Disposition' => 'attachment; filename="nfse-'.($invoice->access_key ?? $invoice->getKey()).'.xml"',
+        ]);
+    }
+
+    /** Checagem ao vivo do formulário: o código está parametrizado no município do emitente? */
+    public function checkServiceCode(CheckServiceCodeRequest $request, ServiceCodeChecker $checker): JsonResponse
+    {
+        $issuer = $this->issuers->forCurrentTenant();
+        if ($issuer === null || ! $issuer->isReadyToIssue()) {
+            return response()->json(['status' => 'unknown', 'service_code' => null, 'rate' => null, 'message' => null]);
+        }
+
+        $check = $checker->check(
+            $issuer,
+            $request->validated('national_tax_code'),
+            $request->validated('municipal_tax_code'),
+            $request->validated('city_code'),
+            $request->competence(),
+        );
+
+        return response()->json([
+            'status' => $check->status,
+            'service_code' => $check->serviceCode,
+            'rate' => $check->rate,
+            'message' => $check->isNotParametrized() ? $checker->notParametrizedMessage($issuer, $check, $request->competence()) : null,
         ]);
     }
 

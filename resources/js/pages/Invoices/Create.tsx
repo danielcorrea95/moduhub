@@ -13,8 +13,9 @@ import AppLayout from '@/layouts/app-layout';
 import { formatCnpj } from '@/lib/fiscal';
 import { cn } from '@/lib/utils';
 import { Head, Link, useForm } from '@inertiajs/react';
-import { Building2, Send, TriangleAlert } from 'lucide-react';
-import type { FormEvent, ReactNode } from 'react';
+import axios from 'axios';
+import { Building2, CircleCheck, CircleX, Send, TriangleAlert } from 'lucide-react';
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 
 interface IssuerSummary {
     legal_name: string;
@@ -98,6 +99,50 @@ interface InvoiceForm {
 }
 
 const SIMPLES_MEI = 2;
+
+interface ServiceCodeCheck {
+    status: 'parametrized' | 'not_parametrized' | 'unknown';
+    service_code: string | null;
+    rate: number | null;
+    message: string | null;
+}
+
+/**
+ * Pergunta ao ADN, via backend, se o município parametrizou o código de serviço na competência.
+ * Só avisa: a validação que bloqueia a emissão acontece no servidor.
+ */
+function useServiceCodeCheck(params: { national: string; municipal: string; city: string; competence: string }, enabled: boolean) {
+    const [check, setCheck] = useState<ServiceCodeCheck | null>(null);
+    const national = params.national.replace(/\D/g, '');
+    const municipal = params.municipal.replace(/\D/g, '');
+
+    useEffect(() => {
+        setCheck(null);
+        if (!enabled || national.length !== 6 || (municipal !== '' && municipal.length !== 3)) return;
+
+        const controller = new AbortController();
+        const timer = setTimeout(() => {
+            axios
+                .get<ServiceCodeCheck>(route('invoices.service-code-check'), {
+                    params: { national_tax_code: national, municipal_tax_code: municipal || undefined, city_code: params.city || undefined, competence_date: params.competence || undefined },
+                    signal: controller.signal,
+                })
+                .then((response) => setCheck(response.data))
+                .catch(() => setCheck(null));
+        }, 500);
+
+        return () => {
+            clearTimeout(timer);
+            controller.abort();
+        };
+    }, [enabled, national, municipal, params.city, params.competence]);
+
+    return check;
+}
+
+function formatRate(rate: number): string {
+    return `${rate.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`;
+}
 
 function today(): string {
     const d = new Date();
@@ -197,6 +242,15 @@ export default function InvoicesCreate({ issuer, retryOf, options }: Props) {
     };
 
     const ready = issuer?.ready_to_issue ?? false;
+    const codeCheck = useServiceCodeCheck(
+        {
+            national: form.data.service.national_tax_code,
+            municipal: form.data.service.municipal_tax_code,
+            city: form.data.service.city_code,
+            competence: form.data.competence_date,
+        },
+        ready,
+    );
     const isMei = issuer?.simples_nacional === SIMPLES_MEI;
     const { taker, service, values } = form.data;
     const generalError = errors.issuer ?? errors.dps;
@@ -382,6 +436,21 @@ export default function InvoicesCreate({ issuer, retryOf, options }: Props) {
                                 />
                             </Field>
                         </div>
+                        {codeCheck?.status === 'parametrized' && (
+                            <p className="-mt-2 flex items-start gap-2 text-sm text-signed" role="status">
+                                <CircleCheck className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+                                <span>
+                                    {codeCheck.service_code} parametrizado em {issuer?.city_name ?? 'no município do emitente'}
+                                    {codeCheck.rate !== null && <> · alíquota {formatRate(codeCheck.rate)}</>}
+                                </span>
+                            </p>
+                        )}
+                        {codeCheck?.status === 'not_parametrized' && (
+                            <p className="-mt-2 flex items-start gap-2 text-sm text-rejected" role="alert">
+                                <CircleX className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+                                <span>{codeCheck.message}</span>
+                            </p>
+                        )}
                         <Field id="description" label="Descrição do serviço" error={errors['service.description']}>
                             <Textarea
                                 id="description"

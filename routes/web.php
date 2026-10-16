@@ -101,6 +101,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/', [InvoicesController::class, 'index'])->name('index');
         Route::get('/create', [InvoicesController::class, 'create'])->name('create');
         Route::post('/', [InvoicesController::class, 'store'])->name('store');
+        Route::get('/service-code-check', [InvoicesController::class, 'checkServiceCode'])->name('service-code-check');
         // ULID na restrição para /invoices/issuer e /invoices/create nunca caírem aqui.
         Route::whereUlid('invoice')->group(function () {
             Route::get('/{invoice}', [InvoicesController::class, 'show'])->name('show');
