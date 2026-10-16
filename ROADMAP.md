@@ -1,0 +1,167 @@
+# Moduhub — Roadmap
+
+Documento vivo de planejamento. Atualize à medida que as fatias se movem entre colunas.
+
+---
+
+## ✅ Entregue
+
+### Core multi-tenant
+- Tenancy row-level (`BelongsToTenant` + `TenantScope` + `CurrentTenant`)
+- Workspaces (criação, troca, membros, convites por link)
+- API Keys (`mdhb_live_` / `mdhb_test_`) com scopes
+- Webhooks com HMAC-SHA256 + backoff exponencial
+- Policies/Gates por recurso
+
+### Módulo Signatures
+- Upload de PDF, inspeção, hash SHA-256
+- Signatários (paralelo ou sequencial), reordenação, auth por e-mail/SMS/ICP
+- Composição de PDF com footer em toda página + página final "Relatório de Assinaturas"
+- Assinatura por código via e-mail (TTL 15min, max 5 tentativas, bcrypt)
+- Assinatura em canvas (visual, opcional)
+- Assinatura ICP-Brasil A1 — e-CPF e e-CNPJ (PKCS#7 via TCPDF)
+- QR code de validação na página de assinaturas
+- Selo "INTEGRIDADE CERTIFICADA · ICP-BRASIL" condicional
+- Página pública de validação `/v/{SHORT_ID}` com trilha de auditoria
+- Webhooks: `document.viewed/signed/completed/rejected`
+- Mailpit configurado para desenvolvimento
+
+---
+
+## 🧪 Validação pendente com cert real
+
+Hoje o ICP A1 só foi validado com certificado fake gerado via openssl. Falta o teste com cert real.
+
+- **Agendado**: 2026-10-16 às 15:00
+- Certificado comprado: **e-CNPJ A1** (SaiberId/Soluti)
+- Checklist do teste:
+  - [ ] Fazer upload do `.pfx` real no form de assinatura ICP (`/sign/{token}`)
+  - [ ] Assinar um doc end-to-end sem erro de parse / senha / expiração
+  - [ ] Abrir PDF final no **Adobe Reader** e confirmar que a cadeia valida (raiz ICP-Brasil → AC Soluti → cert)
+  - [ ] Confirmar que o CNPJ extraído do CN pelo `IcpCertificateService` bate com o CNPJ cadastrado no signatário (match PJ)
+  - [ ] Conferir selo "INTEGRIDADE CERTIFICADA · ICP-BRASIL" no PDF e marca `signature_type=icp` no banco
+  - [ ] `openssl smime -verify` externo retorna "Verification successful"
+
+---
+
+## 🔧 Antes de novos módulos — polir Signatures
+
+Fatias para deixar o módulo pronto para produção antes de expandir:
+
+### Ajustes no sistema atual
+- [ ] Rate limiting nas rotas públicas (`/sign/{token}/*`, `/v/{short}`, `/sign/{token}/code`)
+- [ ] Prevenção de enumeração/timing attacks no code check
+- [x] Convite por e-mail funcional (TenantInvitationMail + Blade responsivo + dispatch no MemberService)
+- [ ] Logo customizado por tenant (hoje só cor primária; adicionar upload)
+- [ ] Reenvio de código com throttle próprio (hoje libera sempre)
+- [x] Fluxo ZapSign-style: email 1 (link) ao enviar, email 2 (código) sob demanda, próximo signer notificado automaticamente em sequencial
+- [ ] Expiração automática de documentos (job agendado para marcar `expired`)
+- [ ] Cleanup de PDFs e canvas de signatários deletados
+- [ ] Reindexar `document_signers.token` como unique (verificar se já é)
+- [ ] Fix: validação de ordem sequencial em edição de signer (não só em add)
+
+### Documentação
+- [ ] **README do projeto** — stack, como rodar, como contribuir
+- [ ] **Guia do usuário** — tutorial: criar workspace, convidar time, enviar primeiro documento, assinar
+- [ ] **Guia do desenvolvedor** — arquitetura, convenções (já em CLAUDE.md), como criar um novo módulo
+- [ ] **Documentação da API REST** — OpenAPI/Swagger ou Scribe, com exemplos de curl
+- [ ] **Guia de integração webhook** — eventos disponíveis, formato do payload, verificação HMAC, retries
+- [ ] **Guia ICP-Brasil** — explicar diferença A1/A3, como obter cert, limitação de 1 ICP/doc, carimbo de tempo (quando entrar)
+- [ ] **Changelog** — manter CHANGELOG.md convencional
+
+### API REST pública
+- [ ] `/api/v1/signatures/documents` — CRUD completo via API key
+- [ ] `/api/v1/signatures/documents/{id}/signers` — add/update/remove
+- [ ] `/api/v1/signatures/documents/{id}/send`
+- [ ] `/api/v1/signatures/documents/{id}/download` (original e signed)
+- [ ] Autenticação via `mdhb_live_` / `mdhb_test_` com scope `signatures:*`
+- [ ] Resources (`JsonResource`) para shape consistente
+
+### Billing (requer estudo de provedor — Stripe/Pagar.me/Asaas)
+- [ ] Planos (Free / Starter / Pro / Enterprise)
+- [ ] Limites por plano (docs/mês, signatários/doc, módulos ativos)
+- [ ] Checkout + webhook de pagamento
+- [ ] Faturas, dunning, cancelamento
+
+---
+
+## 📚 Estudado e adiado
+
+### Módulo de envio de SMS (capability do core)
+Levantamento feito em 2026-10-15. **Decisão: adiar.** Com ~100 SMS/mês não compensa gateway próprio (Jasmin); fase zero será um provedor nacional via HTTP atrás de `SmsGatewayContract`. Desenho completo, fases, preços e contexto regulatório estão em `CLAUDE.md` → "Decisões registradas → SMS".
+
+Impacto quando entrar: desbloqueia `auth_method='sms'` e `email_and_sms` em Signatures, e vira capability reusável para outros módulos (2FA de login, notificações).
+
+---
+
+## 🚀 Próximos módulos
+
+### Módulo NFS-e Nacional
+Previsto como segundo módulo da plataforma. Estratégia: "cada nota emitida = lucro".
+
+- **Escopo**: integração direta com o padrão nacional NFS-e (não com cada prefeitura individualmente)
+- **Base técnica**: API REST da Sefin Nacional (JSON por fora, XML da DPS assinado por dentro, gzip + base64), mTLS com certificado ICP-Brasil A1 em toda chamada, inclusive para abrir o Swagger
+- **Primeiro município de validação**: Novo Hamburgo (RS, IBGE 4313409). Testes via API e painel a partir do CRM Auren.
+- **Certificados**: o A1 do módulo Signatures é da plataforma; para NFS-e cada tenant sobe o próprio e-CNPJ A1 (um emitente por workspace nesta fase, tabela `invoice_issuers`).
+
+#### Entregue em 2026-10-16: emitente + certificado
+- [x] `App\Modules\Invoices` com `Issuer` (tenant-scoped), `IssuerService`, `IssuerRepository`, `IssuerPolicy` (view: membro; manage: owner/admin), `IssuerCertificateInspector`
+- [x] Painel: `/invoices/issuer` com dados cadastrais, enquadramento (opSimpNac, regApTribSN, regEspTrib), ambiente (produção restrita/produção), série da DPS e upload/remoção do .pfx
+- [x] API: `GET|PUT /api/v1/invoices/issuer`, `POST|DELETE /api/v1/invoices/issuer/certificate` (multipart ou `certificate_base64`), escopos `invoices:read|write`, documentada em `/docs/api`
+- [x] Certificado validado na entrada (senha, validade, e-CNPJ da mesma raiz de CNPJ, não-AC, keyUsage assinatura + não repúdio, EKU clientAuth) e guardado com cast `encrypted`; a API nunca devolve o arquivo nem a senha
+- [x] `ValidCnpj` aceita o CNPJ alfanumérico de 2026
+- [x] Testes: `tests/Feature/Invoices/IssuerSettingsTest`, `tests/Feature/Api/InvoicesIssuerApiTest`, trait `Tests\Support\CreatesPkcs12`
+
+#### Entregue em 2026-10-16: emissão, sincronização e cancelamento
+- [x] `Invoice` (pending → issued | rejected; issued → cancelled), número da DPS reservado com lock no emitente; validação/schema não consomem número
+- [x] DPS v1.01 montada à mão (`DpsBuilder`), assinatura XMLDSig própria (`XmlSigner`, RSA-SHA1 configurável) e validação contra os XSD oficiais em `resources/nfse/schemas` (pattern de `serie` corrigido, ver README da pasta)
+- [x] `SefinClientContract`: `SefinHttpClient` (mTLS com o pfx do emitente, gzip+base64) e `FakeSefinClient` (testes; `INVOICES_SEFIN_DRIVER=fake`)
+- [x] Sem resposta da Sefin → `pending`; "Sincronizar" consulta `GET /dps/{id}` e só reenvia a mesma DPS se não houver nota
+- [x] Cancelamento (evento 101101) assinado; recusa da Sefin mantém a nota emitida
+- [x] Painel (lista, nova nota, detalhe com rejeições, XML, cancelar) e API `/api/v1/invoices` com idempotência por `external_id`; webhooks `invoice.issued|rejected|cancelled`
+
+#### Próximas fatias
+- [ ] **Primeiro teste real em produção restrita** com o e-CNPJ: confirmar nomes dos campos JSON (`dpsXmlGZipB64`, `pedidoRegistroEventoXmlGZipB64`, `chaveAcesso`, `erros`) no swagger, SHA-1 x SHA-256 e se NH aceita DPS no ambiente nacional
+- [ ] `GET /parametros_municipais` para validar alíquota/código de serviço antes de enviar (regras de `pAliq` do Anexo I dependem do convênio)
+- [ ] Grupo IBS/CBS na DPS (obrigatório para regime regular, rejeição a partir de 01/01/2027)
+- [ ] DANFSe em PDF (layout NT 008) com QR code
+- [ ] Substituição de NFS-e (DPS com `subst`), intermediário, deduções/descontos, tomador estrangeiro
+
+#### Levantamento de 2026-10-15
+- **Novo Hamburgo**: planilha oficial de adesões de 28/09/2026 marca o município como "Conveniado Ativo", ADN = Sim, **Emissor Nacional = Não** (linha sem atualização desde 26/12/2024). A Prefeitura anunciou em 10/06/2026 que passaria a usar o Emissor Nacional como sistema único em 01/09/2026, desligando o sistema próprio (IPM Atende.net) em 31/08/2026, com base na Resolução CGSN 189/2026. A CGSN 191/2026 (04/08/2026) revogou a 189 e moveu a obrigação do Simples Nacional para **01/11/2026**. Não há comunicado da prefeitura confirmando nova data. **Confirmar com o ISSQN de NH: (51) 3594-9952, issqn@novohamburgo.rs.gov.br.** Independentemente disso, ME/EPP do Simples Nacional em qualquer município emitem pela Sefin Nacional a partir de 01/11/2026.
+- **Endpoints Sefin Nacional** (produção `https://sefin.nfse.gov.br/SefinNacional`, homologação `https://sefin.producaorestrita.nfse.gov.br/SefinNacional`): `POST /nfse` (DPS → NFS-e síncrono; substituição é uma DPS com `subst/chSubstda`), `GET /nfse/{chaveAcesso}`, `POST /nfse/{chaveAcesso}/eventos` (cancelamento), `GET /nfse/{chaveAcesso}/eventos`, `GET|HEAD /dps/{id}`. Parâmetros municipais em `GET /parametros_municipais/{codMun}/convenio|{codServico}|{cnpj}` (alíquotas, regimes, retenções, benefícios). ADN para consulta de notas recebidas: `GET /DFe/{NSU}`. Swaggers: `/docs/index` em cada base (403 sem certificado cliente).
+- **DANFSe**: API nacional de PDF desativada em 03/08/2026 (NT 008/2026). O PDF é responsabilidade do emissor, no layout padronizado pela NT 008. Reaproveitar TCPDF.
+- **Leiaute**: namespace `http://www.sped.fazenda.gov.br/nfse`, XSD v1.01 (09/02/2026) em produção; NT 009 v1.01 (11/09/2026) traz o próximo layout com grupos IBS/CBS (AnexoVI v1.04.01), já em produção restrita. `infDPS`: tpAmb, dhEmi, verAplic, serie, nDPS, dCompet, tpEmit, cLocEmi, subst?, prest, toma?, interm?, serv, valores, IBSCBS?. Campos IBS/CBS obrigatórios para regime regular desde 01/10/2026 (sem rejeição até 31/12/2026); Simples Nacional a partir de 01/01/2027.
+- **Certificado**: e-CNPJ A1 (o mesmo do módulo Signatures) serve para mTLS e para a assinatura XMLDSig enveloped da DPS. Regras do Anexo I: X.509 v3, KeyUsage com assinatura digital e não-repúdio, extensão OtherName com CNPJ, não pode ser certificado de AC, cadeia e LCR válidas.
+- **Dependências a adicionar**: `robrichards/xmlseclibs` (assinatura XML); mTLS via `Http::withOptions(['cert' => ..., 'ssl_key' => ...])` convertendo o .pfx em PEM com o `IcpCertificateService`.
+- **Documentação oficial**: https://www.gov.br/nfse/pt-br/biblioteca/documentacao-tecnica (Anexo I DPS/NFS-e, Anexo II eventos, Anexo B lista de serviços/NBS, XSD; manuais de API em "Documentação Atual"). Cópias extraídas em texto ficaram no scratchpad desta sessão, não no repo.
+- **Features**:
+  - Cadastro de empresa emitente (CNPJ, inscrição municipal, certificado A1)
+  - Emissão de nota (prestador → tomador → serviço → valor)
+  - Consulta de nota, cancelamento, substituição
+  - Lotes assíncronos via `Jobs`
+  - PDF da DANFSe
+  - Webhook `invoice.issued`, `invoice.cancelled`, `invoice.rejected`
+- **Reaproveitamento**: o `IcpCertificateService` do módulo Signatures é 100% reusável para assinar XMLs de NFS-e
+- **Dependência**: antes de começar, Signatures precisa estar estável + Billing funcionando (porque NFS-e será cobrado por emissão)
+
+### Outras ideias (ordem indefinida)
+- Módulo Contratos (templates + variáveis + geração automática + Signatures)
+- Módulo CPF/CNPJ (consulta Serpro / Receita)
+- Módulo Boleto (geração + registro + conciliação)
+- Módulo Procuração digital
+- Marketplace de modelos de documento
+
+---
+
+## 🔭 Backlog técnico (sem fatia específica)
+
+- Testes automatizados (feature + unit) — zero cobertura hoje
+- CI/CD (GitHub Actions): lint PHP + ESLint + testes + build
+- Observability: Sentry, logs estruturados, métricas de uso
+- Backup automatizado de PDFs assinados (S3 cross-region)
+- Reserva de slugs de subdomínio para `tenant.moduhub.com.br`
+- Carimbo de tempo ICP-Brasil (ACT) via BRy/cert.sign
+- Múltiplos ICP por documento (requer biblioteca de incremental PDF signing)
+- Validação OCSP/CRL em tempo real das assinaturas ICP
+- Internacionalização (i18n) do painel — hoje é hard-coded pt-BR

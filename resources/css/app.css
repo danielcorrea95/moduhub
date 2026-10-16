@@ -1,0 +1,146 @@
+@import 'tailwindcss';
+
+@import 'tw-animate-css';
+
+@source '../views';
+@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
+
+@custom-variant dark (&:is(.dark *));
+
+@theme {
+    --font-sans:
+        'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif,
+        'Apple Color Emoji', 'Segoe UI Emoji';
+    --font-mono:
+        'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+    --radius-lg: var(--radius);
+    --radius-md: calc(var(--radius) - 2px);
+    --radius-sm: calc(var(--radius) - 4px);
+
+    --color-background: var(--background);
+    --color-foreground: var(--foreground);
+    --color-card: var(--card);
+    --color-card-foreground: var(--card-foreground);
+    --color-popover: var(--popover);
+    --color-popover-foreground: var(--popover-foreground);
+    --color-primary: var(--primary);
+    --color-primary-foreground: var(--primary-foreground);
+    --color-secondary: var(--secondary);
+    --color-secondary-foreground: var(--secondary-foreground);
+    --color-muted: var(--muted);
+    --color-muted-foreground: var(--muted-foreground);
+    --color-accent: var(--accent);
+    --color-accent-foreground: var(--accent-foreground);
+    --color-destructive: var(--destructive);
+    --color-destructive-foreground: var(--destructive-foreground);
+    --color-border: var(--border);
+    --color-input: var(--input);
+    --color-ring: var(--ring);
+
+    --color-sidebar: var(--sidebar);
+    --color-sidebar-foreground: var(--sidebar-foreground);
+    --color-sidebar-primary: var(--sidebar-primary);
+    --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+    --color-sidebar-accent: var(--sidebar-accent);
+    --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+    --color-sidebar-border: var(--sidebar-border);
+    --color-sidebar-ring: var(--sidebar-ring);
+
+    /* Cores de carimbo: cada estado de documento/signatário tem tinta + fundo.
+       Use via StatusBadge / SignerProgress, não diretamente nas páginas. */
+    --color-signed: var(--signed);
+    --color-signed-soft: var(--signed-soft);
+    --color-pending: var(--pending);
+    --color-pending-soft: var(--pending-soft);
+    --color-rejected: var(--rejected);
+    --color-rejected-soft: var(--rejected-soft);
+    --color-sent: var(--sent);
+    --color-sent-soft: var(--sent-soft);
+    --color-idle: var(--idle);
+    --color-idle-soft: var(--idle-soft);
+}
+
+:root {
+    /* Papel frio + grafite + azul caneta */
+    --background: #f5f6f8;
+    --foreground: #1b2230;
+    --card: #ffffff;
+    --card-foreground: #1b2230;
+    --popover: #ffffff;
+    --popover-foreground: #1b2230;
+    --primary: #2338b8;
+    --primary-foreground: #ffffff;
+    --secondary: #eceef2;
+    --secondary-foreground: #1b2230;
+    --muted: #eceef2;
+    --muted-foreground: #5b6474;
+    --accent: #e9ecfa;
+    --accent-foreground: #1b2a8f;
+    --destructive: #b42318;
+    --destructive-foreground: #ffffff;
+    --border: #e1e4ea;
+    --input: #d5d9e1;
+    --ring: #2338b8;
+    --radius: 0.75rem;
+
+    /* Moldura do painel: a sidebar é "vazada" sobre este fundo e o conteúdo flutua num container branco. */
+    --sidebar: #eef0f4;
+    --sidebar-foreground: #333b4a;
+    --sidebar-primary: #2338b8;
+    --sidebar-primary-foreground: #ffffff;
+    --sidebar-accent: #e2e5ec;
+    --sidebar-accent-foreground: #1b2230;
+    --sidebar-border: #dfe2e9;
+    --sidebar-ring: #2338b8;
+
+    --signed: #1f7a4d;
+    --signed-soft: #e3f2ea;
+    --pending: #9a5f0c;
+    --pending-soft: #fbefd9;
+    --rejected: #b42318;
+    --rejected-soft: #fbe6e4;
+    --sent: #2338b8;
+    --sent-soft: #e9ecfa;
+    --idle: #5b6474;
+    --idle-soft: #eceef2;
+}
+
+@layer base {
+    * {
+        @apply border-border;
+    }
+
+    body {
+        @apply bg-background text-foreground antialiased;
+        font-feature-settings: 'ss02';
+    }
+
+    :focus-visible {
+        @apply outline-ring;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+            animation-duration: 0.01ms !important;
+            transition-duration: 0.01ms !important;
+        }
+    }
+}
+
+/* Site: a assinatura do hero sendo escrita da esquerda para a direita, uma única vez. */
+@keyframes signature-ink {
+    from {
+        clip-path: inset(0 100% 0 0);
+    }
+    to {
+        clip-path: inset(0 0 0 0);
+    }
+}
+
+.signature-ink {
+    clip-path: inset(0 100% 0 0);
+    animation: signature-ink 1.5s cubic-bezier(0.55, 0.1, 0.35, 1) 0.8s forwards;
+}
