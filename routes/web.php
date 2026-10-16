@@ -105,6 +105,7 @@ Route::middleware('auth')->group(function () {
         Route::whereUlid('invoice')->group(function () {
             Route::get('/{invoice}', [InvoicesController::class, 'show'])->name('show');
             Route::get('/{invoice}/xml', [InvoicesController::class, 'xml'])->name('xml');
+            Route::get('/{invoice}/pdf', [InvoicesController::class, 'pdf'])->name('pdf');
             Route::post('/{invoice}/sync', [InvoicesController::class, 'sync'])->name('sync');
             Route::post('/{invoice}/cancel', [InvoicesController::class, 'cancel'])->name('cancel');
         });

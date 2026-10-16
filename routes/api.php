@@ -51,6 +51,7 @@ Route::middleware(['api.key', 'throttle:api'])->group(function () {
             Route::get('/', [ApiInvoiceController::class, 'index'])->name('index');
             Route::get('/{invoice}', [ApiInvoiceController::class, 'show'])->whereUlid('invoice')->name('show');
             Route::get('/{invoice}/xml', [ApiInvoiceController::class, 'xml'])->whereUlid('invoice')->name('xml');
+            Route::get('/{invoice}/pdf', [ApiInvoiceController::class, 'pdf'])->whereUlid('invoice')->name('pdf');
         });
 
         Route::middleware('api.scope:invoices:write')->group(function () {

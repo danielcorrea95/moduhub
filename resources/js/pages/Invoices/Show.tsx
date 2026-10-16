@@ -18,8 +18,8 @@ import { Textarea } from '@/components/ui/textarea';
 import AppLayout from '@/layouts/app-layout';
 import { formatAccessKey, formatMoney, formatTaxDocument } from '@/lib/fiscal';
 import { formatDate, formatDateTime } from '@/lib/utils';
-import { Head, router, useForm } from '@inertiajs/react';
-import { Ban, Download, RefreshCw, TriangleAlert } from 'lucide-react';
+import { Head, Link, router, useForm } from '@inertiajs/react';
+import { Ban, Download, FileText, Pencil, RefreshCw, TriangleAlert } from 'lucide-react';
 import { useState, type FormEvent, type ReactNode } from 'react';
 
 interface SefinMessage {
@@ -201,11 +201,18 @@ export default function InvoicesShow({ invoice, canCancel, options }: Props) {
                 <div className="flex shrink-0 flex-wrap items-center gap-2">
                     {invoice.status === 'issued' && canCancel && <CancelDialog invoice={invoice} reasons={options.cancel_reason} />}
                     {invoice.has_xml && (
-                        <Button variant="outline" asChild>
-                            <a href={route('invoices.xml', invoice.id)}>
-                                <Download /> Baixar XML
-                            </a>
-                        </Button>
+                        <>
+                            <Button variant="outline" asChild>
+                                <a href={route('invoices.xml', invoice.id)}>
+                                    <Download /> Baixar XML
+                                </a>
+                            </Button>
+                            <Button asChild>
+                                <a href={route('invoices.pdf', invoice.id)} target="_blank" rel="noopener">
+                                    <FileText /> Ver DANFSe
+                                </a>
+                            </Button>
+                        </>
                     )}
                     {invoice.status === 'pending' && (
                         <Button onClick={sync} disabled={syncing}>
@@ -244,7 +251,14 @@ export default function InvoicesShow({ invoice, canCancel, options }: Props) {
                             </li>
                         ))}
                     </ul>
-                    <p className="mt-3 text-rejected/80">Corrija os dados e emita uma nova nota. O número desta DPS não é reaproveitado.</p>
+                    <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <p className="text-rejected/80">Corrija os dados e reenvie. Sai uma DPS nova; esta fica registrada como rejeitada.</p>
+                        <Button asChild size="sm" className="shrink-0">
+                            <Link href={route('invoices.create', { from: invoice.id })}>
+                                <Pencil /> Corrigir e reenviar
+                            </Link>
+                        </Button>
+                    </div>
                 </section>
             )}
 

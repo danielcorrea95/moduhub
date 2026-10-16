@@ -27,8 +27,35 @@ interface IssuerSummary {
     ready_to_issue: boolean;
 }
 
+interface SefinMessage {
+    code: string | null;
+    message: string;
+    complement: string | null;
+}
+
+/** Dados de uma nota rejeitada, com os mesmos campos (parciais) do formulário. */
+interface RetryOf {
+    id: string;
+    dps_number: number;
+    rejection: SefinMessage[];
+    draft: {
+        external_id: string | null;
+        competence_date: string | null;
+        taker: Partial<Omit<InvoiceForm['taker'], 'address'>> & { address?: Partial<InvoiceForm['taker']['address']> | null };
+        service: Partial<InvoiceForm['service']>;
+        values: {
+            amount: string;
+            iss_rate: string | null;
+            iss_withheld: boolean;
+            iss_taxation: number;
+            approximate_taxes: Partial<Record<'federal' | 'state' | 'municipal', string | number | null>> | null;
+        };
+    };
+}
+
 interface Props {
     issuer: IssuerSummary | null;
+    retryOf: RetryOf | null;
     options: {
         iss_taxation: Record<string, string>;
         environment: Record<string, string>;
@@ -77,6 +104,48 @@ function today(): string {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
+const text = (value: string | number | null | undefined) => (value === null || value === undefined ? '' : String(value));
+
+function initialData(issuer: IssuerSummary | null, retryOf: RetryOf | null): InvoiceForm {
+    const draft = retryOf?.draft;
+    const address = draft?.taker.address ?? {};
+    const taxes = draft?.values.approximate_taxes ?? {};
+
+    return {
+        external_id: text(draft?.external_id),
+        competence_date: draft?.competence_date ?? today(),
+        taker: {
+            document: text(draft?.taker.document),
+            name: text(draft?.taker.name),
+            email: text(draft?.taker.email),
+            phone: text(draft?.taker.phone),
+            municipal_registration: text(draft?.taker.municipal_registration),
+            address: {
+                postal_code: text(address.postal_code),
+                street: text(address.street),
+                number: text(address.number),
+                complement: text(address.complement),
+                district: text(address.district),
+                city_code: text(address.city_code),
+            },
+        },
+        service: {
+            national_tax_code: text(draft?.service.national_tax_code),
+            municipal_tax_code: text(draft?.service.municipal_tax_code),
+            nbs_code: text(draft?.service.nbs_code),
+            description: text(draft?.service.description),
+            city_code: text(draft?.service.city_code) || (issuer?.city_code ?? ''),
+        },
+        values: {
+            amount: text(draft?.values.amount),
+            iss_rate: text(draft?.values.iss_rate),
+            iss_withheld: draft?.values.iss_withheld ?? false,
+            iss_taxation: text(draft?.values.iss_taxation) || '1',
+            approximate_taxes: { federal: text(taxes.federal), state: text(taxes.state), municipal: text(taxes.municipal) },
+        },
+    };
+}
+
 function Field({
     id,
     label,
@@ -106,33 +175,8 @@ function Field({
     );
 }
 
-export default function InvoicesCreate({ issuer, options }: Props) {
-    const form = useForm<InvoiceForm>({
-        external_id: '',
-        competence_date: today(),
-        taker: {
-            document: '',
-            name: '',
-            email: '',
-            phone: '',
-            municipal_registration: '',
-            address: { postal_code: '', street: '', number: '', complement: '', district: '', city_code: '' },
-        },
-        service: {
-            national_tax_code: '',
-            municipal_tax_code: '',
-            nbs_code: '',
-            description: '',
-            city_code: issuer?.city_code ?? '',
-        },
-        values: {
-            amount: '',
-            iss_rate: '',
-            iss_withheld: false,
-            iss_taxation: '1',
-            approximate_taxes: { federal: '', state: '', municipal: '' },
-        },
-    });
+export default function InvoicesCreate({ issuer, retryOf, options }: Props) {
+    const form = useForm<InvoiceForm>(initialData(issuer, retryOf));
 
     const errors = form.errors as Record<string, string | undefined>;
 
@@ -159,10 +203,10 @@ export default function InvoicesCreate({ issuer, options }: Props) {
 
     return (
         <AppLayout breadcrumbs={[{ title: 'Notas fiscais', href: route('invoices.index') }, { title: 'Nova nota' }]} width="narrow">
-            <Head title="Nova NFS-e" />
+            <Head title={retryOf ? 'Corrigir e reenviar NFS-e' : 'Nova NFS-e'} />
 
             <PageHeader
-                title="Nova NFS-e"
+                title={retryOf ? `Corrigir DPS nº ${retryOf.dps_number}` : 'Nova NFS-e'}
                 description={
                     issuer
                         ? `Emitida por ${issuer.legal_name} (${formatCnpj(issuer.cnpj)}), DPS nº ${issuer.next_dps_number}.`
@@ -195,6 +239,20 @@ export default function InvoicesCreate({ issuer, options }: Props) {
                         ? 'Ambiente de produção: a nota tem validade fiscal e o ISS passa a ser devido.'
                         : 'Produção restrita: a nota é de teste e não tem validade fiscal.'}
                 </p>
+            )}
+
+            {retryOf && retryOf.rejection.length > 0 && (
+                <section className="rounded-lg border border-rejected/30 bg-rejected-soft px-4 py-3 text-sm text-rejected" role="note">
+                    <p className="font-medium">A Sefin rejeitou a DPS nº {retryOf.dps_number} por:</p>
+                    <ul className="mt-1.5 grid gap-1">
+                        {retryOf.rejection.map((r, index) => (
+                            <li key={index}>
+                                {r.code && <span className="font-mono font-medium">{r.code}</span>} {r.message}
+                            </li>
+                        ))}
+                    </ul>
+                    <p className="mt-2 text-rejected/80">Os dados abaixo vieram dela. Corrija e emita: sai uma DPS nova, e a rejeitada fica no histórico.</p>
+                </section>
             )}
 
             {generalError && (

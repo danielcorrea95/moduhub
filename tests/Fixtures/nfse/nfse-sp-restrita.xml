@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<NFSe xmlns="http://www.sped.fazenda.gov.br/nfse" versao="1.01">
+  <infNFSe Id="NFS35503082212345678000195000000000000126108607888201">
+    <xLocEmi>São Paulo</xLocEmi>
+    <xLocPrestacao>São Paulo</xLocPrestacao>
+    <nNFSe>1</nNFSe>
+    <cLocIncid>3550308</cLocIncid>
+    <xLocIncid>São Paulo</xLocIncid>
+    <xTribNac>Análise e desenvolvimento de sistemas.</xTribNac>
+    <verAplic>SefinNacional_1.6.0</verAplic>
+    <ambGer>2</ambGer>
+    <tpEmis>1</tpEmis>
+    <procEmi>1</procEmi>
+    <cStat>100</cStat>
+    <dhProc>2026-10-16T20:18:35-03:00</dhProc>
+    <nDFSe>19628</nDFSe>
+    <emit>
+      <CNPJ>12345678000195</CNPJ>
+      <xNome>ACME SOFTWARE LTDA</xNome>
+      <enderNac>
+        <xLgr>AVENIDA PAULISTA</xLgr>
+        <nro>1000</nro>
+        <xBairro>BELA VISTA</xBairro>
+        <cMun>3550308</cMun>
+        <UF>SP</UF>
+        <CEP>1311000</CEP>
+      </enderNac>
+      <fone>11999990000</fone>
+    </emit>
+    <valores>
+      <vLiq>10.00</vLiq>
+    </valores>
+    <DPS versao="1.01">
+      <infDPS Id="DPS355030821234567800019500001000000000000003">
+        <tpAmb>2</tpAmb>
+        <dhEmi>2026-10-16T20:17:29-03:00</dhEmi>
+        <verAplic>Moduhub 1.0</verAplic>
+        <serie>1</serie>
+        <nDPS>3</nDPS>
+        <dCompet>2025-08-15</dCompet>
+        <tpEmit>1</tpEmit>
+        <cLocEmi>3550308</cLocEmi>
+        <prest>
+          <CNPJ>12345678000195</CNPJ>
+          <fone>11999990000</fone>
+          <regTrib>
+            <opSimpNac>3</opSimpNac>
+            <regApTribSN>1</regApTribSN>
+            <regEspTrib>0</regEspTrib>
+          </regTrib>
+        </prest>
+        <toma>
+          <CPF>52998224725</CPF>
+          <xNome>Maria Tomadora</xNome>
+          <end>
+            <endNac><cMun>4313409</cMun><CEP>93510000</CEP></endNac>
+            <xLgr>Rua Julio de Castilhos</xLgr>
+            <nro>100</nro>
+            <xBairro>Centro</xBairro>
+          </end>
+          <email>maria@example.com</email>
+        </toma>
+        <serv>
+          <locPrest><cLocPrestacao>3550308</cLocPrestacao></locPrest>
+          <cServ>
+            <cTribNac>010101</cTribNac>
+            <xDescServ>Teste de integração Moduhub - desenvolvimento de software</xDescServ>
+          </cServ>
+        </serv>
+        <valores>
+          <vServPrest><vServ>10.00</vServ></vServPrest>
+          <trib>
+            <tribMun><tribISSQN>1</tribISSQN><tpRetISSQN>1</tpRetISSQN></tribMun>
+            <totTrib><pTotTrib><pTotTribFed>4.15</pTotTribFed><pTotTribEst>0.00</pTotTribEst><pTotTribMun>2.00</pTotTribMun></pTotTrib></totTrib>
+          </trib>
+        </valores>
+      </infDPS>
+    </DPS>
+  </infNFSe>
+</NFSe>

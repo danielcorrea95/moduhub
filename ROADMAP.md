@@ -116,10 +116,16 @@ Previsto como segundo módulo da plataforma. Estratégia: "cada nota emitida = l
 - [x] Painel (lista, nova nota, detalhe com rejeições, XML, cancelar) e API `/api/v1/invoices` com idempotência por `external_id`; webhooks `invoice.issued|rejected|cancelled`
 
 #### Próximas fatias
-- [ ] **Primeiro teste real em produção restrita** com o e-CNPJ: confirmar nomes dos campos JSON (`dpsXmlGZipB64`, `pedidoRegistroEventoXmlGZipB64`, `chaveAcesso`, `erros`) no swagger, SHA-1 x SHA-256 e se NH aceita DPS no ambiente nacional
-- [ ] `GET /parametros_municipais` para validar alíquota/código de serviço antes de enviar (regras de `pAliq` do Anexo I dependem do convênio)
+- [x] **Primeiro envio real em produção restrita (2026-10-16)**: mTLS, `dpsXmlGZipB64`, gzip+base64, assinatura RSA-SHA1 e leiaute aceitos; a Sefin chegou à regra de negócio e devolveu `E0312` (código de tributação nacional `010101` não administrado pelo município de incidência). Emitente de teste: DCS Software Engineering, **São Paulo/SP (3550308)**, que é Conveniado Ativo e usa o Emissor Nacional desde 22/12/2025
+- [x] Parâmetros municipais **não** ficam na Sefin (`/parametros_municipais` dá 404): ficam no ADN, `https://adn[.producaorestrita].nfse.gov.br/parametrizacao` (swagger em `/parametrizacao/swagger/v1/swagger.json`, mTLS). Rotas: `/{codMun}/convenio`, `/{codMun}/{codServico}/{competencia}/aliquota`, `/{codMun}/{codServico}/historicoaliquotas`, `/{codMun}/{codServico}/{competencia}/regimes_especiais`, `/{codMun}/{competencia}/retencoes`, benefícios. `codServico` tem 9 dígitos com pontos: cTribNac + cTribMun (`08.02.01.000`)
+- [x] São Paulo (3550308): aderente ao Emissor Nacional nos dois ambientes; sem alíquota para `08.02.01.000` nem `01.01.01.000` em 16/10/2026 (produção e restrita). Na restrita, `01.01.01.000` teve alíquota de 17/03/2025 a 01/09/2025. Para comparação: NH tem `08.02.01.000` a 2% desde 11/05/2026, Porto Alegre a 5%
+- [x] **Primeira NFS-e emitida em 16/10/2026** na restrita: DCS/SP, `01.01.01`, competência 15/08/2025, NFS-e nº 1, chave `35503082256310735000176000000000000126108607888201`. Resposta de sucesso (`chaveAcesso`, `nfseXmlGZipB64`) validada
+- [x] Cancelamento dessa nota pelo painel aceito pela Sefin real (evento 101101, `pedidoRegistroEventoXmlGZipB64`). Ciclo emitir → XML → cancelar validado de ponta a ponta
+- [ ] Descobrir com o contador o de-para do código municipal 05762 de SP (instrução/treinamento, item 8.02) para cTribNac + cTribMun
+- [ ] Validar código de serviço e alíquota no ADN antes de enviar a DPS (mostrar no formulário "código não parametrizado neste município" em vez de esperar a E0312)
+- [ ] Ainda não exercitado contra a Sefin real: `GET /dps/{id}` (sincronização de nota pendente)
 - [ ] Grupo IBS/CBS na DPS (obrigatório para regime regular, rejeição a partir de 01/01/2027)
-- [ ] DANFSe em PDF (layout NT 008) com QR code
+- [x] DANFSe em PDF conforme NT 008 v1.02 (14/07/2026), cópia em `docs/nfse/nt-008-danfse-v1-02.pdf`: A4 retrato, página única, coordenadas em cm por campo, QR code `https://www.nfse.gov.br/ConsultaPublica/?tpc=1&chave={chave}` (mín. 1,52 cm), "NFS-e SEM VALIDADE JURÍDICA" em vermelho quando tpAmb=2, marca "CANCELADA"/"SUBSTITUÍDA", canhoto opcional. Entregue em 2026-10-16: `DanfseData` (XML → campos) + `DanfseRenderer` (TCPDF), painel "Ver DANFSe" e `GET /api/v1/invoices/{id}/pdf`. Pendências: nome do município do tomador/intermediário (o XML só traz o código IBGE; falta tabela IBGE), canhoto não impresso, campos IBS/CBS saem "-" até a DPS ter o grupo
 - [ ] Substituição de NFS-e (DPS com `subst`), intermediário, deduções/descontos, tomador estrangeiro
 
 #### Levantamento de 2026-10-15

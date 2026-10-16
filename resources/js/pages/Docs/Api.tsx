@@ -57,6 +57,7 @@ const NAV: DocsNavGroup[] = [
             { id: 'sincronizar-nota', title: 'Sincronizar nota pendente' },
             { id: 'cancelar-nota', title: 'Cancelar nota' },
             { id: 'baixar-xml', title: 'Baixar XML' },
+            { id: 'baixar-danfse', title: 'Baixar DANFSe (PDF)' },
         ],
     },
     {
@@ -1172,6 +1173,26 @@ export default function ApiDocs({ baseUrl, scopes, events, rateLimitPerMinute }:
                         <p>
                             Devolve o XML da NFS-e como a Sefin gerou (<C>application/xml</C>), com a DPS assinada dentro. É o documento fiscal que
                             vale; guarde-o. Responde 404 enquanto a nota não foi gerada.
+                        </p>
+                    </Prose>
+                </Endpoint>
+
+                <Endpoint
+                    id="baixar-danfse"
+                    title="Baixar DANFSe (PDF)"
+                    method="GET"
+                    path="/invoices/{id}/pdf"
+                    scope="invoices:read"
+                    code={S({ method: 'GET', path: `/invoices/${INVOICE_ID}/pdf` })}
+                >
+                    <Prose>
+                        <p>
+                            Devolve o DANFSe, a representação em PDF da NFS-e, no layout padrão da Nota Técnica 008/2026: página A4 única, QR
+                            code para a consulta pública no portal nacional e os dados lidos do XML da nota.
+                        </p>
+                        <p>
+                            O PDF é gerado na hora a partir do XML. Notas canceladas saem com a marca d&apos;água <C>CANCELADA</C>, e notas de
+                            produção restrita com o aviso <C>NFS-e SEM VALIDADE JURÍDICA</C>. Responde 404 enquanto a nota não foi gerada.
                         </p>
                     </Prose>
                 </Endpoint>

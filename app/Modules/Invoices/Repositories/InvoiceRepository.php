@@ -48,4 +48,12 @@ class InvoiceRepository implements InvoiceRepositoryContract
             ->latest()
             ->first();
     }
+
+    public function findRejected(string $id): ?Invoice
+    {
+        return Invoice::query()
+            ->whereKey($id)
+            ->where('status', Invoice::STATUS_REJECTED)
+            ->first();
+    }
 }

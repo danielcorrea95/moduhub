@@ -182,6 +182,22 @@ class InvoicesApiTest extends TestCase
             ->assertJsonPath('data.0.id', $id);
     }
 
+    public function test_downloads_the_danfse_pdf(): void
+    {
+        $this->configureIssuer($this->tenant);
+        $key = $this->key(['invoices:*']);
+        $id = $this->withToken($key)->postJson('/api/v1/invoices', $this->invoicePayload())->json('data.id');
+
+        $pdf = $this->withToken($this->key(['invoices:read']))->get("/api/v1/invoices/{$id}/pdf")
+            ->assertOk()
+            ->assertHeader('Content-Type', 'application/pdf');
+        $this->assertStringStartsWith('%PDF', $pdf->getContent());
+
+        $this->sefin()->rejectNext([['code' => 'E0312', 'message' => 'Código não administrado.']]);
+        $rejected = $this->withToken($key)->postJson('/api/v1/invoices', $this->invoicePayload(['external_id' => 'outro']))->json('data.id');
+        $this->withToken($key)->get("/api/v1/invoices/{$rejected}/pdf")->assertNotFound();
+    }
+
     public function test_requires_a_ready_issuer(): void
     {
         $key = $this->key(['invoices:*']);

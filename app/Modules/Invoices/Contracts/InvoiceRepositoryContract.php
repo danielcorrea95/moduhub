@@ -15,4 +15,7 @@ interface InvoiceRepositoryContract
 
     /** Nota já criada para o mesmo pedido do sistema do cliente e que ainda vale (não rejeitada). */
     public function findReusableByExternalId(string $externalId): ?Invoice;
+
+    /** Nota rejeitada do workspace atual, usada como rascunho para corrigir e reenviar. */
+    public function findRejected(string $id): ?Invoice;
 }

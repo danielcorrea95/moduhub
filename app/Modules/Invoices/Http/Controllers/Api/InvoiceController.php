@@ -10,6 +10,7 @@ use App\Modules\Invoices\Http\Requests\Api\IssueInvoiceApiRequest;
 use App\Modules\Invoices\Http\Requests\Api\ListInvoicesApiRequest;
 use App\Modules\Invoices\Http\Resources\InvoiceResource;
 use App\Modules\Invoices\Models\Invoice;
+use App\Modules\Invoices\Services\Danfse\DanfseGenerator;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
@@ -76,6 +77,16 @@ class InvoiceController extends Controller
         return response($invoice->nfse_xml, 200, [
             'Content-Type' => 'application/xml; charset=UTF-8',
             'Content-Disposition' => 'attachment; filename="nfse-'.($invoice->access_key ?? $invoice->getKey()).'.xml"',
+        ]);
+    }
+
+    public function pdf(Invoice $invoice, DanfseGenerator $danfse): Response
+    {
+        abort_unless($invoice->hasNfseXml(), 404, 'A NFS-e ainda não foi gerada.');
+
+        return response($danfse->forInvoice($invoice), 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="'.$danfse->filename($invoice).'"',
         ]);
     }
 }

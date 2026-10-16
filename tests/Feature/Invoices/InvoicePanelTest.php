@@ -101,6 +101,44 @@ class InvoicePanelTest extends TestCase
                 ->where('invoice.rejection.0.code', 'E0116'));
     }
 
+    public function test_rejected_invoice_is_corrected_and_resent_as_a_new_dps(): void
+    {
+        $this->configureIssuer($this->tenant);
+        $this->sefin()->rejectNext([['code' => 'E0312', 'message' => 'Código de tributação nacional não administrado pelo município.']]);
+        $this->actingAs($this->owner)->post(route('invoices.store'), $this->invoicePayload());
+        $rejected = Invoice::withoutGlobalScopes()->firstOrFail();
+
+        $this->actingAs($this->owner)
+            ->get(route('invoices.create', ['from' => $rejected->getKey()]))
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('retryOf.id', $rejected->getKey())
+                ->where('retryOf.rejection.0.code', 'E0312')
+                ->where('retryOf.draft.external_id', 'pedido-1001')
+                ->where('retryOf.draft.taker.document', '11222333000181')
+                ->where('retryOf.draft.service.national_tax_code', '010701')
+                ->where('retryOf.draft.values.amount', '1500.00'));
+
+        $this->actingAs($this->owner)
+            ->post(route('invoices.store'), $this->invoicePayload(['service' => ['national_tax_code' => '01.05.01']]))
+            ->assertSessionHas('success', 'NFS-e emitida.');
+
+        $resent = Invoice::withoutGlobalScopes()->where('status', Invoice::STATUS_ISSUED)->firstOrFail();
+        $this->assertSame(2, $resent->dps_number);
+        $this->assertSame('010501', $resent->service['national_tax_code']);
+        $this->assertTrue($rejected->fresh()->isRejected(), 'A rejeitada continua no histórico.');
+    }
+
+    public function test_only_rejected_invoices_prefill_the_form(): void
+    {
+        $this->configureIssuer($this->tenant);
+        $this->actingAs($this->owner)->post(route('invoices.store'), $this->invoicePayload());
+        $issued = Invoice::withoutGlobalScopes()->firstOrFail();
+
+        $this->actingAs($this->owner)
+            ->get(route('invoices.create', ['from' => $issued->getKey()]))
+            ->assertInertia(fn (Assert $page) => $page->where('retryOf', null));
+    }
+
     public function test_owner_syncs_and_cancels(): void
     {
         $this->configureIssuer($this->tenant);
@@ -119,6 +157,11 @@ class InvoicePanelTest extends TestCase
             ->assertSessionHas('success');
 
         $this->assertTrue($invoice->fresh()->isCancelled());
+
+        $pdf = $this->actingAs($this->owner)->get(route('invoices.pdf', $invoice))
+            ->assertOk()
+            ->assertHeader('Content-Type', 'application/pdf');
+        $this->assertStringContainsString('CANCELADA', (new \Smalot\PdfParser\Parser)->parseContent($pdf->getContent())->getText());
 
         $this->actingAs($this->owner)->get(route('invoices.xml', $invoice))
             ->assertOk()

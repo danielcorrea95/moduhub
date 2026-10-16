@@ -12,6 +12,7 @@ use App\Modules\Invoices\Http\Requests\ListInvoicesRequest;
 use App\Modules\Invoices\Http\Resources\InvoiceResource;
 use App\Modules\Invoices\Models\Invoice;
 use App\Modules\Invoices\Models\Issuer;
+use App\Modules\Invoices\Services\Danfse\DanfseGenerator;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -56,12 +57,33 @@ class InvoiceController extends Controller
         ]);
     }
 
-    public function create(): Response
+    public function create(Request $request): Response
     {
         $this->authorize('issue', Invoice::class);
         $issuer = $this->issuers->forCurrentTenant();
 
+        // "Corrigir e reenviar": parte dos dados de uma nota rejeitada; a emissão gera uma DPS nova.
+        $source = is_string($request->query('from')) ? $this->invoices->findRejected($request->query('from')) : null;
+
         return Inertia::render('Invoices/Create', [
+            'retryOf' => $source === null ? null : [
+                'id' => $source->getKey(),
+                'dps_number' => $source->dps_number,
+                'rejection' => $source->rejection ?? [],
+                'draft' => [
+                    'external_id' => $source->external_id,
+                    'competence_date' => $source->competence_date?->toDateString(),
+                    'taker' => $source->taker,
+                    'service' => $source->service,
+                    'values' => [
+                        'amount' => (string) $source->amount,
+                        'iss_rate' => $source->iss_rate !== null ? (string) $source->iss_rate : null,
+                        'iss_withheld' => $source->iss_withheld,
+                        'iss_taxation' => $source->iss_taxation,
+                        'approximate_taxes' => $source->approximate_taxes,
+                    ],
+                ],
+            ],
             'issuer' => $issuer === null ? null : [
                 'legal_name' => $issuer->legal_name,
                 'cnpj' => $issuer->cnpj,
@@ -125,6 +147,17 @@ class InvoiceController extends Controller
         return response($invoice->nfse_xml, 200, [
             'Content-Type' => 'application/xml; charset=UTF-8',
             'Content-Disposition' => 'attachment; filename="nfse-'.($invoice->access_key ?? $invoice->getKey()).'.xml"',
+        ]);
+    }
+
+    public function pdf(Invoice $invoice, DanfseGenerator $danfse): HttpResponse
+    {
+        $this->authorize('view', $invoice);
+        abort_unless($invoice->hasNfseXml(), 404);
+
+        return response($danfse->forInvoice($invoice), 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="'.$danfse->filename($invoice).'"',
         ]);
     }
 
