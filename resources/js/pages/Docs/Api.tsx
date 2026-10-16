@@ -1047,6 +1047,15 @@ export default function ApiDocs({ baseUrl, scopes, events, rateLimitPerMinute }:
                             },
                         ]}
                     />
+                    <Callout tone="warning">
+                        <p>
+                            A rejeição mais comum é a <C>E0312</C>: o município de incidência não tem o código de serviço parametrizado no
+                            Sistema Nacional. O que a prefeitura cadastra é a combinação do código de tributação nacional com o desdobramento
+                            municipal (<C>service.municipal_tax_code</C>). O código municipal antigo da prefeitura (por exemplo, os 5 dígitos da
+                            NFS-e Paulistana) não serve aqui. Confirme com o contador do emitente o código nacional e o desdobramento usados nas
+                            notas dele.
+                        </p>
+                    </Callout>
                 </Endpoint>
 
                 <Endpoint
