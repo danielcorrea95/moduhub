@@ -64,6 +64,8 @@ class Document extends Model
         'sent_at' => 'datetime',
         'completed_at' => 'datetime',
         'cancelled_at' => 'datetime',
+        'sealed_at' => 'datetime',
+        'seal_certificate_valid_to' => 'datetime',
     ];
 
     public function creator(): BelongsTo
@@ -89,6 +91,11 @@ class Document extends Model
     public function isDraft(): bool
     {
         return $this->status === self::STATUS_DRAFT;
+    }
+
+    public function isSealed(): bool
+    {
+        return $this->sealed_at !== null;
     }
 
     public function isFinalized(): bool

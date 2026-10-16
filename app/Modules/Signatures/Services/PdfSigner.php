@@ -15,10 +15,16 @@ class PdfSigner
         string $sourceAbsolute,
         string $destinationAbsolute,
         IcpCertificate $cert,
+        string $reason,
     ): void {
-        $pdf = new Fpdi('P', 'mm', 'A4');
+        // O TCPDF reserva ~5,8 KB para o PKCS#7 e corta o que passar disso. Com a cadeia ICP-Brasil
+        // completa embutida a assinatura passa de 7 KB, então reservamos 16 KB.
+        $pdf = new class('P', 'mm', 'A4') extends Fpdi
+        {
+            protected $signature_max_length = 32768;
+        };
         $pdf->SetCreator('Moduhub');
-        $pdf->SetAuthor($cert->subjectCn ?: 'Signatário');
+        $pdf->SetAuthor($cert->subjectCn);
         $pdf->setPrintHeader(false);
         $pdf->setPrintFooter(false);
         $pdf->SetAutoPageBreak(false);
@@ -33,20 +39,42 @@ class PdfSigner
             $pdf->useTemplate($tpl, 0, 0, $size['width'], $size['height'], true);
         }
 
-        $pdf->setSignature(
-            $cert->certPem,
-            $cert->privateKeyPem,
-            '',
-            '',
-            2,
-            [
-                'Name' => $cert->subjectCn ?: 'Signatário',
-                'Location' => 'Brasil',
-                'Reason' => 'Assinatura digital ICP-Brasil',
-                'ContactInfo' => $cert->issuerCn,
-            ],
-        );
+        // O openssl_pkcs7_sign do TCPDF só aceita a cadeia como caminho de arquivo.
+        $chainFile = $this->writeChainFile($cert);
 
-        $pdf->Output($destinationAbsolute, 'F');
+        try {
+            $pdf->setSignature(
+                $cert->certPem,
+                $cert->privateKeyPem,
+                '',
+                $chainFile ?? '',
+                2,
+                [
+                    'Name' => $cert->subjectCn,
+                    'Location' => 'Brasil',
+                    'Reason' => $reason,
+                    'ContactInfo' => $cert->issuerCn,
+                ],
+            );
+
+            $pdf->Output($destinationAbsolute, 'F');
+        } finally {
+            if ($chainFile !== null) {
+                @unlink($chainFile);
+            }
+        }
+    }
+
+    protected function writeChainFile(IcpCertificate $cert): ?string
+    {
+        if ($cert->chainPem === []) {
+            return null;
+        }
+
+        $path = tempnam(sys_get_temp_dir(), 'mdhb_chain_');
+        chmod($path, 0600);
+        file_put_contents($path, implode("\n", $cert->chainPem));
+
+        return $path;
     }
 }

@@ -27,8 +27,7 @@ class SignatureService implements SignatureServiceContract
         protected SignatureRepositoryContract $repo,
         protected DocumentServiceContract $documents,
         protected WebhookDispatcherContract $webhooks,
-        protected IcpCertificateService $icp,
-        protected PdfSigner $pdfSigner,
+        protected PlatformSealService $seal,
     ) {}
 
     public function markViewed(DocumentSigner $signer, Request $request): void
@@ -152,8 +151,6 @@ class SignatureService implements SignatureServiceContract
                 $request,
             );
 
-            $this->documents->regenerateWorkingPdf($signer->document->fresh());
-
             $this->fire($signer->document, 'document.signed', [
                 'document_id' => $signer->document->getKey(),
                 'signer_id' => $signer->getKey(),
@@ -161,127 +158,11 @@ class SignatureService implements SignatureServiceContract
                 'signed_at' => $signer->signed_at?->toIso8601String(),
             ]);
 
+            // Na última assinatura o PDF é montado uma vez só, já com o selo, em completeDocument.
             if ($this->repo->allSignersSigned($signer->document)) {
                 $this->completeDocument($signer->document, $request);
             } else {
-                $signer->document->update(['status' => Document::STATUS_PARTIALLY_SIGNED]);
-                $this->notifyNextIfSequential($signer->document->fresh());
-            }
-        });
-    }
-
-    public function signWithIcp(DocumentSigner $signer, string $pkcs12Binary, string $password, Request $request): void
-    {
-        $this->assertDocumentReceivable($signer);
-        $this->assertSignerActionable($signer);
-        $this->assertTurnIfSequential($signer);
-
-        if ($signer->auth_method !== DocumentSigner::AUTH_ICP) {
-            throw ValidationException::withMessages([
-                'certificate' => 'Este signatário não usa autenticação ICP-Brasil.',
-            ]);
-        }
-
-        $cert = $this->icp->parse($pkcs12Binary, $password);
-
-        if ($signer->cpf !== null && $cert->cpf !== null) {
-            $signerCpf = $this->icp->normalizeDigits($signer->cpf);
-            $certCpf = $this->icp->normalizeDigits($cert->cpf);
-            if ($signerCpf !== '' && $certCpf !== '' && $signerCpf !== $certCpf) {
-                throw ValidationException::withMessages([
-                    'certificate' => 'O CPF do certificado não corresponde ao do signatário.',
-                ]);
-            }
-        }
-
-        if ($signer->cnpj !== null && $cert->cnpj !== null) {
-            $signerCnpj = $this->icp->normalizeDigits($signer->cnpj);
-            $certCnpj = $this->icp->normalizeDigits($cert->cnpj);
-            if ($signerCnpj !== '' && $certCnpj !== '' && $signerCnpj !== $certCnpj) {
-                throw ValidationException::withMessages([
-                    'certificate' => 'O CNPJ do certificado não corresponde ao do signatário.',
-                ]);
-            }
-        }
-
-        if ($signer->cpf !== null && $cert->cnpj !== null && $cert->cpf === null) {
-            throw ValidationException::withMessages([
-                'certificate' => 'O signatário foi cadastrado com CPF, mas o certificado é e-CNPJ.',
-            ]);
-        }
-        if ($signer->cnpj !== null && $cert->cpf !== null && $cert->cnpj === null) {
-            throw ValidationException::withMessages([
-                'certificate' => 'O signatário foi cadastrado com CNPJ, mas o certificado é e-CPF.',
-            ]);
-        }
-
-        if (! $this->repo->remainingElectronicSignersFinished($signer->document, $signer->getKey())) {
-            throw ValidationException::withMessages([
-                'certificate' => 'Aguarde todos os outros signatários concluírem antes de assinar com ICP-Brasil.',
-            ]);
-        }
-
-        DB::transaction(function () use ($signer, $cert, $request) {
-            $signer->forceFill([
-                'status' => DocumentSigner::STATUS_SIGNED,
-                'signature_type' => DocumentSigner::TYPE_ICP,
-                'signed_at' => now(),
-                'ip_address' => $request->ip(),
-                'user_agent' => $request->userAgent(),
-                'verification_code' => null,
-                'icp_certificate_subject' => $cert->subjectCn,
-                'icp_certificate_serial' => $cert->serial,
-                'icp_certificate_issuer' => $cert->issuerCn,
-                'icp_certificate_valid_from' => $cert->validFrom,
-                'icp_certificate_valid_to' => $cert->validTo,
-            ])->save();
-
-            $this->documents->regenerateWorkingPdf($signer->document->fresh());
-
-            $document = $signer->document->fresh();
-            $disk = Storage::disk($document->file_disk);
-            $workingAbs = $disk->path($document->final_file_path);
-
-            $tempAbs = $workingAbs . '.icp.tmp';
-            $this->pdfSigner->signWithPkcs12($workingAbs, $tempAbs, $cert);
-
-            if (! file_exists($tempAbs) || filesize($tempAbs) < 1024) {
-                throw ValidationException::withMessages([
-                    'certificate' => 'Falha ao aplicar assinatura digital no documento.',
-                ]);
-            }
-
-            rename($tempAbs, $workingAbs);
-
-            $this->documents->recordEvent(
-                $signer->document,
-                DocumentEvent::TYPE_SIGNED,
-                null,
-                [
-                    'signer' => $this->signerSnapshot($signer),
-                    'signature_type' => DocumentSigner::TYPE_ICP,
-                    'certificate' => [
-                        'subject' => $cert->subjectCn,
-                        'issuer' => $cert->issuerCn,
-                        'serial' => $cert->serial,
-                        'valid_to' => $cert->validTo->toIso8601String(),
-                    ],
-                ],
-                $signer->getKey(),
-                $request,
-            );
-
-            $this->fire($signer->document, 'document.signed', [
-                'document_id' => $signer->document->getKey(),
-                'signer_id' => $signer->getKey(),
-                'signer_email' => $signer->email,
-                'signature_type' => DocumentSigner::TYPE_ICP,
-                'signed_at' => $signer->signed_at?->toIso8601String(),
-            ]);
-
-            if ($this->repo->allSignersSigned($signer->document)) {
-                $this->completeDocumentWithoutRegen($signer->document, $request);
-            } else {
+                $this->documents->regenerateWorkingPdf($signer->document->fresh());
                 $signer->document->update(['status' => Document::STATUS_PARTIALLY_SIGNED]);
                 $this->notifyNextIfSequential($signer->document->fresh());
             }
@@ -304,36 +185,6 @@ class SignatureService implements SignatureServiceContract
         }
 
         $this->documents->notifySigner($next, $document);
-    }
-
-    protected function completeDocumentWithoutRegen(Document $document, Request $request): void
-    {
-        $document->update([
-            'status' => Document::STATUS_COMPLETED,
-            'completed_at' => now(),
-        ]);
-
-        $fresh = $document->fresh();
-        $workingAbs = Storage::disk($fresh->file_disk)->path($fresh->final_file_path);
-        $fresh->forceFill([
-            'final_file_hash' => file_exists($workingAbs) ? hash_file('sha256', $workingAbs) : null,
-        ])->save();
-
-        $this->documents->recordEvent(
-            $fresh,
-            DocumentEvent::TYPE_FINALIZED,
-            null,
-            ['sha256_final' => $fresh->final_file_hash, 'sealed_with_icp' => true],
-            null,
-            $request,
-        );
-
-        $this->fire($fresh, 'document.completed', [
-            'document_id' => $fresh->getKey(),
-            'completed_at' => $fresh->completed_at?->toIso8601String(),
-            'final_sha256' => $fresh->final_file_hash,
-            'sealed_with_icp' => true,
-        ]);
     }
 
     public function reject(DocumentSigner $signer, string $reason, Request $request): void
@@ -387,7 +238,9 @@ class SignatureService implements SignatureServiceContract
         ]);
 
         $fresh = $document->fresh();
-        $workingAbs = \Illuminate\Support\Facades\Storage::disk($fresh->file_disk)->path($fresh->final_file_path);
+        $sealed = $this->seal->finalize($fresh);
+
+        $workingAbs = Storage::disk($fresh->file_disk)->path($fresh->final_file_path);
         $fresh->forceFill([
             'final_file_hash' => file_exists($workingAbs) ? hash_file('sha256', $workingAbs) : null,
         ])->save();
@@ -396,7 +249,15 @@ class SignatureService implements SignatureServiceContract
             $fresh,
             DocumentEvent::TYPE_FINALIZED,
             null,
-            ['sha256_final' => $fresh->final_file_hash],
+            array_filter([
+                'sha256_final' => $fresh->final_file_hash,
+                'sealed_with_icp' => $sealed,
+                'seal_certificate' => $sealed ? [
+                    'subject' => $fresh->seal_certificate_subject,
+                    'issuer' => $fresh->seal_certificate_issuer,
+                    'serial' => $fresh->seal_certificate_serial,
+                ] : null,
+            ], fn ($value) => $value !== null),
             null,
             $request,
         );
@@ -405,7 +266,11 @@ class SignatureService implements SignatureServiceContract
             'document_id' => $fresh->getKey(),
             'completed_at' => $fresh->completed_at?->toIso8601String(),
             'final_sha256' => $fresh->final_file_hash,
+            'sealed_with_icp' => $sealed,
         ]);
+
+        // Só depois do commit: se a transação da última assinatura falhar, ninguém recebe cópia.
+        DB::afterCommit(fn () => $this->documents->sendSignedCopies($fresh->fresh()));
     }
 
     protected function assertDocumentReceivable(DocumentSigner $signer): void

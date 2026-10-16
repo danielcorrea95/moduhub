@@ -29,7 +29,6 @@ import {
     FileText,
     Mail,
     PenLine,
-    ShieldCheck,
     TriangleAlert,
     Type,
 } from 'lucide-react';
@@ -38,11 +37,12 @@ import { useState, type FormEvent, type ReactNode } from 'react';
 interface PublicSigner {
     id: number | string;
     name: string;
+    role: string | null;
     email: string;
     cpf: string | null;
     order: number;
     status: string;
-    auth_method: 'email' | 'sms' | 'email_and_sms' | 'icp' | string;
+    auth_method: 'email' | 'sms' | 'email_and_sms' | string;
     signed_at: string | null;
     rejected_at: string | null;
     rejection_reason: string | null;
@@ -79,12 +79,6 @@ interface SignFormData {
     signature_image: string | null;
 }
 
-interface IcpFormData {
-    certificate: File | null;
-    password: string;
-    accepted: boolean;
-}
-
 // O token não vem nas props; a URL pública é /sign/{token}.
 function signerToken(): string {
     return window.location.pathname.split('/')[2];
@@ -104,10 +98,8 @@ export default function PublicSignShow({
 
     const codeForm = useForm({});
     const signForm = useForm<SignFormData>({ code: '', accepted: false, signature_image: null });
-    const icpForm = useForm<IcpFormData>({ certificate: null, password: '', accepted: false });
     const rejectForm = useForm<{ reason: string }>({ reason: '' });
 
-    const isIcpSigner = signer.auth_method === 'icp';
     const sequentialBlocked = document.sign_order === 'sequential' && waiting_predecessors > 0;
     const issuer = tenant?.name ?? 'O emissor';
     // Erros do serviço que não pertencem a um campo (prazo, documento indisponível, fora da vez).
@@ -132,13 +124,6 @@ export default function PublicSignShow({
         signForm.post(route('public-sign.sign', { token: signerToken() }));
     };
 
-    const submitIcp = (e: FormEvent) => {
-        e.preventDefault();
-        icpForm.post(route('public-sign.sign-icp', { token: signerToken() }), {
-            forceFormData: true,
-        });
-    };
-
     const submitReject = (e: FormEvent) => {
         e.preventDefault();
         rejectForm.post(route('public-sign.reject', { token: signerToken() }), {
@@ -150,11 +135,6 @@ export default function PublicSignShow({
     const signMissing: string[] = [];
     if (signForm.data.code.length !== 6) signMissing.push('digite o código de 6 dígitos');
     if (!signForm.data.accepted) signMissing.push('marque a caixa de concordância');
-
-    const icpMissing: string[] = [];
-    if (!icpForm.data.certificate) icpMissing.push('escolha o arquivo do certificado');
-    if (!icpForm.data.password) icpMissing.push('digite a senha');
-    if (!icpForm.data.accepted) icpMissing.push('marque a caixa de concordância');
 
     return (
         <PublicLayout
@@ -223,13 +203,17 @@ export default function PublicSignShow({
                         <section className="rounded-xl border bg-card shadow-xs" aria-label="Assinatura">
                             <div className="border-b px-4 py-4 sm:px-5">
                                 <p className="text-sm text-muted-foreground">Assinando como</p>
-                                <p className="mt-0.5 font-semibold break-words">{signer.name}</p>
+                                <p className="mt-0.5 font-semibold break-words">
+                                    {signer.name}
+                                    {signer.role && (
+                                        <span className="font-normal text-muted-foreground">, {signer.role}</span>
+                                    )}
+                                </p>
                                 <p className="text-sm break-all text-muted-foreground">{signer.email}</p>
                                 <p className="mt-2 text-xs text-muted-foreground">
                                     {document.sign_order === 'sequential'
                                         ? `Você é a pessoa nº ${signer.order} na ordem de assinatura.`
                                         : `Signatário nº ${signer.order}.`}
-                                    {isIcpSigner && ' Assinatura com certificado digital ICP-Brasil.'}
                                 </p>
                             </div>
 
@@ -257,68 +241,6 @@ export default function PublicSignShow({
                                             </p>
                                         </div>
                                     </div>
-                                ) : isIcpSigner ? (
-                                    <form onSubmit={submitIcp} className="space-y-6">
-                                        <div className="space-y-3">
-                                            <StepTitle number={2}>Envie seu certificado</StepTitle>
-                                            <p className="text-sm text-muted-foreground">
-                                                Use o seu certificado A1 (arquivo .pfx ou .p12) e a senha dele. O
-                                                certificado é usado só para esta assinatura e não fica guardado nos
-                                                nossos servidores.
-                                            </p>
-                                            <div className="space-y-2">
-                                                <Label htmlFor="certificate">Arquivo do certificado</Label>
-                                                <input
-                                                    id="certificate"
-                                                    type="file"
-                                                    accept=".pfx,.p12,application/x-pkcs12"
-                                                    onChange={(e) =>
-                                                        icpForm.setData('certificate', e.target.files?.[0] ?? null)
-                                                    }
-                                                    aria-invalid={Boolean(icpForm.errors.certificate)}
-                                                    className={cn(
-                                                        'block w-full rounded-md border border-input bg-card text-sm text-foreground',
-                                                        'file:mr-3 file:h-10 file:cursor-pointer file:border-0 file:border-r file:border-input file:bg-accent file:px-3 file:text-sm file:font-medium file:text-accent-foreground',
-                                                        'focus-visible:outline-2 focus-visible:outline-offset-2 aria-invalid:border-destructive',
-                                                    )}
-                                                />
-                                                <InputError message={icpForm.errors.certificate} />
-                                            </div>
-                                            <div className="space-y-2">
-                                                <Label htmlFor="pfxpass">Senha do certificado</Label>
-                                                <Input
-                                                    id="pfxpass"
-                                                    type="password"
-                                                    value={icpForm.data.password}
-                                                    onChange={(e) => icpForm.setData('password', e.target.value)}
-                                                    autoComplete="off"
-                                                    aria-invalid={Boolean(icpForm.errors.password)}
-                                                    className="h-11 bg-card"
-                                                />
-                                                <InputError message={icpForm.errors.password} />
-                                            </div>
-                                        </div>
-
-                                        <div className="space-y-3">
-                                            <StepTitle number={3}>Confirme e assine</StepTitle>
-                                            <Consent
-                                                id="icp-accepted"
-                                                checked={icpForm.data.accepted}
-                                                onChange={(v) => icpForm.setData('accepted', v)}
-                                                error={icpForm.errors.accepted}
-                                            >
-                                                Li o documento e autorizo a aplicação da minha assinatura digital
-                                                ICP-Brasil neste PDF.
-                                            </Consent>
-                                            <SubmitButton
-                                                processing={icpForm.processing}
-                                                disabled={icpMissing.length > 0}
-                                                processingLabel="Processando certificado..."
-                                                icon={<ShieldCheck />}
-                                            />
-                                            <MissingHint missing={icpForm.processing ? [] : icpMissing} />
-                                        </div>
-                                    </form>
                                 ) : !code_sent ? (
                                     <div className="space-y-3">
                                         <StepTitle number={2}>Confirme que é você</StepTitle>

@@ -22,6 +22,7 @@ const TYPE_LABEL: Record<string, string> = {
     expired: 'Prazo expirado',
     downloaded: 'PDF baixado',
     finalized: 'PDF final gerado',
+    copies_sent: 'Cópia assinada enviada aos envolvidos',
 };
 
 const CHANGE_LABEL: Record<string, string> = {

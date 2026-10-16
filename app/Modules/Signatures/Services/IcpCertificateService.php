@@ -65,6 +65,7 @@ class IcpCertificateService
             serial: $serial,
             validFrom: $validFrom,
             validTo: $validTo,
+            chainPem: array_values($certs['extracerts'] ?? []),
         );
     }
 

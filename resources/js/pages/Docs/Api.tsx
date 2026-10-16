@@ -276,6 +276,7 @@ function exampleDocument(baseUrl: string) {
                 id: SIGNER_ID,
                 order: 1,
                 name: 'Lisiane Rodrigues Fonseca',
+                role: 'Responsável financeiro',
                 email: 'lisiane@example.com',
                 cpf: null,
                 cnpj: null,
@@ -351,19 +352,20 @@ const DOCUMENT_FIELDS: Param[] = [
 
 const SIGNER_INPUT: Param[] = [
     { name: 'name', type: 'string', required: true, description: 'Nome completo de quem vai assinar.' },
+    { name: 'role', type: 'string', description: 'Papel de quem assina, até 60 caracteres (ex.: "Diretor", "Responsável financeiro"). Aparece no relatório de assinaturas como "Assinado como …".' },
     { name: 'email', type: 'string', required: true, description: 'E-mail que recebe o link e o código de confirmação. Não pode repetir no mesmo documento.' },
     {
         name: 'auth_method',
         type: 'string',
         description: (
             <>
-                <C>email</C> (padrão): a pessoa confirma com um código enviado por e-mail. <C>icp</C>: assina com certificado digital
-                ICP-Brasil (A1); só um signatário por documento e ele precisa ser o último da ordem.
+                <C>email</C> (padrão): a pessoa confirma com um código enviado por e-mail. Quem assina não precisa de certificado
+                digital: o PDF final é selado com o certificado ICP-Brasil da plataforma.
             </>
         ),
     },
-    { name: 'cpf', type: 'string', description: 'Com ou sem máscara. Para quem assina com ICP, precisa bater com o certificado.' },
-    { name: 'cnpj', type: 'string', description: 'Com ou sem máscara; é guardado só com dígitos. Usado para conferir certificados de pessoa jurídica.' },
+    { name: 'cpf', type: 'string', description: 'Com ou sem máscara. Aparece no relatório de assinaturas.' },
+    { name: 'cnpj', type: 'string', description: 'Com ou sem máscara; é guardado só com dígitos.' },
     { name: 'phone', type: 'string', description: 'Telefone de contato, usado para montar o link de WhatsApp no painel.' },
 ];
 
@@ -514,7 +516,7 @@ export default function ApiDocs({ baseUrl, scopes, events, rateLimitPerMinute }:
                                         sign_order: 'sequential',
                                         send: true,
                                         signers: [
-                                            { name: 'Lisiane Rodrigues Fonseca', email: 'lisiane@example.com' },
+                                            { name: 'Lisiane Rodrigues Fonseca', role: 'Responsável financeiro', email: 'lisiane@example.com' },
                                             { name: 'Dionísio Felipe Hatzenberger', email: 'dionisio@example.com' },
                                         ],
                                     },
@@ -622,10 +624,7 @@ export default function ApiDocs({ baseUrl, scopes, events, rateLimitPerMinute }:
                             Envia um rascunho para assinatura: os signatários recebem o e-mail com o link (na ordem sequencial, só o primeiro)
                             e o evento <C>document.sent</C> é disparado.
                         </p>
-                        <p>
-                            Exige ao menos um signatário. Se houver alguém com certificado ICP-Brasil, ele precisa ser o único e o último da
-                            ordem.
-                        </p>
+                        <p>Exige ao menos um signatário.</p>
                     </Prose>
                 </Endpoint>
 
@@ -1233,7 +1232,7 @@ export default function ApiDocs({ baseUrl, scopes, events, rateLimitPerMinute }:
                             { name: 'document.sent', type: 'evento', description: <><C>sent_at</C>, <C>signers_count</C></> },
                             { name: 'document.viewed', type: 'evento', description: <><C>signer_id</C>, <C>signer_email</C></> },
                             { name: 'document.signed', type: 'evento', description: <><C>signer_id</C>, <C>signer_email</C>, <C>signed_at</C></> },
-                            { name: 'document.completed', type: 'evento', description: <><C>completed_at</C>, <C>final_sha256</C> e, quando houve certificado ICP, <C>sealed_with_icp</C></> },
+                            { name: 'document.completed', type: 'evento', description: <><C>completed_at</C>, <C>final_sha256</C> e <C>sealed_with_icp</C> (se o PDF final recebeu o selo ICP-Brasil da plataforma)</> },
                             { name: 'document.rejected', type: 'evento', description: <><C>signer_id</C>, <C>signer_email</C>, <C>reason</C></> },
                         ]}
                     />

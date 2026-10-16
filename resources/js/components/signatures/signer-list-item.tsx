@@ -42,6 +42,7 @@ export function SignerListItem({
     const [editing, setEditing] = useState(false);
     const { data, setData, patch, processing, errors, clearErrors } = useForm<SignerFormData>({
         name: signer.name,
+        role: signer.role ?? '',
         email: signer.email,
         cpf: signer.cpf ?? '',
         cnpj: signer.cnpj ?? '',
@@ -126,6 +127,7 @@ export function SignerListItem({
                 <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                         <span className="font-medium text-foreground">{signer.name}</span>
+                        {signer.role && <span className="text-sm text-muted-foreground">{signer.role}</span>}
                         <StatusBadge kind="signer" status={signer.status} />
                     </div>
                     <p className="truncate text-sm text-muted-foreground">{signer.email}</p>

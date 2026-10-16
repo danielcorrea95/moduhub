@@ -27,6 +27,7 @@ class DocumentEvent extends Model
     public const TYPE_EXPIRED = 'expired';
     public const TYPE_DOWNLOADED = 'downloaded';
     public const TYPE_FINALIZED = 'finalized';
+    public const TYPE_COPIES_SENT = 'copies_sent';
 
     protected $fillable = [
         'tenant_id',

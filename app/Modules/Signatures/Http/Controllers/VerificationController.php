@@ -61,8 +61,6 @@ class VerificationController extends Controller
 
     protected function documentPayload(Document $document): array
     {
-        $hasIcp = $document->signers->contains(fn ($s) => $s->signature_type === DocumentSigner::TYPE_ICP);
-
         return [
             'id' => $document->getKey(),
             'name' => $document->name,
@@ -75,7 +73,12 @@ class VerificationController extends Controller
             'sent_at' => $document->sent_at,
             'completed_at' => $document->completed_at,
             'expires_at' => $document->expires_at,
-            'has_icp_signature' => $hasIcp,
+            'seal' => $document->isSealed() ? [
+                'sealed_at' => $document->sealed_at,
+                'certificate_subject' => $document->seal_certificate_subject,
+                'certificate_issuer' => $document->seal_certificate_issuer,
+                'certificate_valid_to' => $document->seal_certificate_valid_to,
+            ] : null,
         ];
     }
 
@@ -85,6 +88,7 @@ class VerificationController extends Controller
             'id' => $signer->getKey(),
             'order' => $signer->order,
             'name' => $signer->name,
+            'role' => $signer->role,
             'email' => $this->maskEmail($signer->email),
             'cpf' => $signer->cpf ? $this->maskCpf($signer->cpf) : null,
             'cnpj' => $signer->cnpj,

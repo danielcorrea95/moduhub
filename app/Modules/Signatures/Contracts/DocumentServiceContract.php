@@ -22,6 +22,8 @@ interface DocumentServiceContract
 
     public function notifySigner(DocumentSigner $signer, Document $document, ?User $sender = null): void;
 
+    public function sendSignedCopies(Document $document): void;
+
     public function recordEvent(
         Document $document,
         string $type,

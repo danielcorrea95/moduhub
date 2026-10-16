@@ -8,6 +8,7 @@ import type { SubmitEvent } from 'react';
 export function AddSignerForm({ documentId }: { documentId: string }) {
     const { data, setData, post, processing, errors, reset } = useForm<SignerFormData>({
         name: '',
+        role: '',
         email: '',
         cpf: '',
         cnpj: '',

@@ -10,12 +10,13 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 
-export type AuthMethod = 'email' | 'sms' | 'email_and_sms' | 'icp';
+export type AuthMethod = 'email' | 'sms' | 'email_and_sms';
 
 export interface Signer {
     id: string;
     order: number;
     name: string;
+    role: string | null;
     email: string;
     cpf: string | null;
     cnpj: string | null;
@@ -32,6 +33,7 @@ export interface Signer {
 
 export interface SignerFormData {
     name: string;
+    role: string;
     email: string;
     cpf: string;
     cnpj: string;
@@ -44,10 +46,21 @@ export const AUTH_METHOD_LABEL: Record<AuthMethod, string> = {
     email: 'Código por e-mail',
     sms: 'Código por SMS',
     email_and_sms: 'Código por e-mail e SMS',
-    icp: 'Certificado ICP-Brasil',
 };
 
 const AUTH_METHODS = Object.keys(AUTH_METHOD_LABEL) as AuthMethod[];
+
+/** Sugestões do campo "papel"; a pessoa pode digitar qualquer outro. */
+const ROLE_SUGGESTIONS = [
+    'Contratante',
+    'Contratado',
+    'Diretor',
+    'Responsável financeiro',
+    'Representante legal',
+    'Sócio',
+    'Fiador',
+    'Testemunha',
+];
 
 /** Campos compartilhados entre "adicionar" e "editar" signatário. */
 export function SignerFields({
@@ -61,7 +74,6 @@ export function SignerFields({
     setData: <K extends keyof SignerFormData>(key: K, value: SignerFormData[K]) => void;
     errors: Partial<Record<keyof SignerFormData, string>>;
 }) {
-    const isIcp = data.auth_method === 'icp';
     const id = (field: string) => `${idPrefix}-${field}`;
 
     return (
@@ -92,9 +104,30 @@ export function SignerFields({
                 <InputError message={errors.email} />
             </div>
             <div className="grid gap-2">
-                <Label htmlFor={id('cpf')}>
-                    {isIcp ? 'CPF (se usar e-CPF A1)' : 'CPF (opcional)'}
-                </Label>
+                <Label htmlFor={id('role')}>Assina como (opcional)</Label>
+                <Input
+                    id={id('role')}
+                    value={data.role}
+                    onChange={(e) => setData('role', e.target.value)}
+                    list={id('role-suggestions')}
+                    maxLength={60}
+                    placeholder="Ex.: Diretor, Testemunha"
+                    autoComplete="off"
+                    aria-describedby={id('role-help')}
+                    aria-invalid={Boolean(errors.role)}
+                />
+                <datalist id={id('role-suggestions')}>
+                    {ROLE_SUGGESTIONS.map((role) => (
+                        <option key={role} value={role} />
+                    ))}
+                </datalist>
+                <p id={id('role-help')} className="text-xs text-muted-foreground">
+                    Aparece no relatório de assinaturas.
+                </p>
+                <InputError message={errors.role} />
+            </div>
+            <div className="grid gap-2">
+                <Label htmlFor={id('cpf')}>CPF (opcional)</Label>
                 <Input
                     id={id('cpf')}
                     value={data.cpf}
@@ -106,9 +139,7 @@ export function SignerFields({
                 <InputError message={errors.cpf} />
             </div>
             <div className="grid gap-2">
-                <Label htmlFor={id('cnpj')}>
-                    {isIcp ? 'CNPJ (se usar e-CNPJ A1)' : 'CNPJ (opcional)'}
-                </Label>
+                <Label htmlFor={id('cnpj')}>CNPJ (opcional)</Label>
                 <Input
                     id={id('cnpj')}
                     value={data.cnpj}

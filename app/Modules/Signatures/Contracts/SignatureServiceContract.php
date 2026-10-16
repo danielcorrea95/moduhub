@@ -13,7 +13,5 @@ interface SignatureServiceContract
 
     public function sign(DocumentSigner $signer, string $code, Request $request, ?string $signatureImage = null): void;
 
-    public function signWithIcp(DocumentSigner $signer, string $pkcs12Binary, string $password, Request $request): void;
-
     public function reject(DocumentSigner $signer, string $reason, Request $request): void;
 }

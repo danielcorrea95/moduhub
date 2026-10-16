@@ -16,6 +16,8 @@ final readonly class IcpCertificate
         public string $serial,
         public CarbonImmutable $validFrom,
         public CarbonImmutable $validTo,
+        /** Cadeia de ACs que veio no .pfx, para quem valida o PDF chegar até a raiz ICP-Brasil. */
+        public array $chainPem = [],
     ) {}
 
     public function kind(): string

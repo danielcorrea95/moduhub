@@ -35,7 +35,6 @@ Route::prefix('sign')->name('public-sign.')->group(function () {
     Route::get('/{token}/pdf', [SignaturesPublicController::class, 'pdf'])->name('pdf');
     Route::post('/{token}/code', [SignaturesPublicController::class, 'sendCode'])->name('send-code');
     Route::post('/{token}', [SignaturesPublicController::class, 'verifyAndSign'])->name('sign');
-    Route::post('/{token}/icp', [SignaturesPublicController::class, 'verifyAndSignIcp'])->name('sign-icp');
     Route::post('/{token}/reject', [SignaturesPublicController::class, 'reject'])->name('reject');
     Route::get('/{token}/thanks', [SignaturesPublicController::class, 'thanks'])->name('thanks');
 });

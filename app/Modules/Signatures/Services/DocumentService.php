@@ -5,6 +5,7 @@ namespace App\Modules\Signatures\Services;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Modules\Signatures\Contracts\DocumentServiceContract;
+use App\Modules\Signatures\Mail\DocumentCompletedMail;
 use App\Modules\Signatures\Mail\DocumentReadyMail;
 use App\Modules\Signatures\Models\Document;
 use App\Modules\Signatures\Models\DocumentEvent;
@@ -84,8 +85,6 @@ class DocumentService implements DocumentServiceContract
             ]);
         }
 
-        $this->assertIcpConstraints($document);
-
         $refreshed = DB::transaction(function () use ($document, $actor, $request) {
             $workingPath = $this->composer->buildWorkingPdf($document);
 
@@ -152,6 +151,41 @@ class DocumentService implements DocumentServiceContract
         }
     }
 
+    /**
+     * Manda a cópia assinada para cada signatário e para quem criou o documento.
+     * Um e-mail com problema não impede os outros nem desfaz a conclusão.
+     */
+    public function sendSignedCopies(Document $document): void
+    {
+        $recipients = [];
+        foreach ($document->signers()->withoutTenantScope()->orderBy('order')->get() as $signer) {
+            $recipients[strtolower($signer->email)] = $signer->name;
+        }
+
+        $creator = $document->creator;
+        if ($creator !== null && ! isset($recipients[strtolower($creator->email)])) {
+            $recipients[strtolower($creator->email)] = $creator->name;
+        }
+
+        $queued = [];
+        foreach ($recipients as $email => $name) {
+            try {
+                Mail::to($email)->queue(new DocumentCompletedMail($document, $name, $email, $document->tenant));
+                $queued[] = $email;
+            } catch (\Throwable $e) {
+                Log::warning('Failed to queue signed copy email', [
+                    'document_id' => $document->getKey(),
+                    'email' => $email,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        if ($queued !== []) {
+            $this->recordEvent($document, DocumentEvent::TYPE_COPIES_SENT, null, ['recipients' => $queued]);
+        }
+    }
+
     public function regenerateWorkingPdf(Document $document): string
     {
         $workingPath = $this->composer->buildWorkingPdf($document);
@@ -175,33 +209,6 @@ class DocumentService implements DocumentServiceContract
             }
             $document->delete();
         });
-    }
-
-    protected function assertIcpConstraints(Document $document): void
-    {
-        $signers = $document->signers()->orderBy('order')->get();
-        $icp = $signers->where('auth_method', \App\Modules\Signatures\Models\DocumentSigner::AUTH_ICP);
-
-        if ($icp->isEmpty()) {
-            return;
-        }
-
-        if ($icp->count() > 1) {
-            throw ValidationException::withMessages([
-                'signers' => 'Apenas um signatário pode usar certificado ICP-Brasil por documento.',
-            ]);
-        }
-
-        $icpSigner = $icp->first();
-        $electronicMaxOrder = $signers
-            ->where('auth_method', '!=', \App\Modules\Signatures\Models\DocumentSigner::AUTH_ICP)
-            ->max('order');
-
-        if ($electronicMaxOrder !== null && $icpSigner->order <= $electronicMaxOrder) {
-            throw ValidationException::withMessages([
-                'signers' => 'O signatário com ICP-Brasil deve ser o último na ordem de assinatura.',
-            ]);
-        }
     }
 
     public function recordEvent(

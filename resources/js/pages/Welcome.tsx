@@ -221,8 +221,8 @@ const TRUST = [
     },
     {
         icon: KeyRound,
-        title: 'Certificado ICP-Brasil quando precisar',
-        body: 'Para documentos que exigem assinatura qualificada, o signatário assina com o próprio e-CNPJ ou e-CPF A1.',
+        title: 'Selo ICP-Brasil em todo documento',
+        body: 'Ao concluir, o PDF é assinado digitalmente com o certificado ICP-Brasil da plataforma. Qualquer alteração depois disso invalida o selo.',
     },
     {
         icon: BadgeCheck,

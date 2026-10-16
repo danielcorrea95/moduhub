@@ -34,6 +34,7 @@ class StoreDocumentApiRequest extends FormRequest
             'send' => 'nullable|boolean',
             'signers' => 'nullable|array|max:50',
             'signers.*.name' => 'required|string|max:255',
+            'signers.*.role' => 'nullable|string|max:60',
             'signers.*.email' => 'required|email|max:255|distinct:ignore_case',
             'signers.*.cpf' => 'nullable|string|max:14',
             'signers.*.cnpj' => 'nullable|string|max:18',
@@ -42,7 +43,6 @@ class StoreDocumentApiRequest extends FormRequest
                 DocumentSigner::AUTH_EMAIL,
                 DocumentSigner::AUTH_SMS,
                 DocumentSigner::AUTH_EMAIL_AND_SMS,
-                DocumentSigner::AUTH_ICP,
             ]),
         ];
     }

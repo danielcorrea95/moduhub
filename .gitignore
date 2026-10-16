@@ -31,3 +31,7 @@ Thumbs.db
 /_opensquad
 /.claude/settings.local.json
 /sign-ready.png
+
+# Certificados digitais
+*.pfx
+*.p12

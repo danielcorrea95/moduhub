@@ -15,32 +15,27 @@ Documento vivo de planejamento. Atualize à medida que as fatias se movem entre 
 
 ### Módulo Signatures
 - Upload de PDF, inspeção, hash SHA-256
-- Signatários (paralelo ou sequencial), reordenação, auth por e-mail/SMS/ICP
+- Signatários (paralelo ou sequencial), reordenação, auth por e-mail/SMS
 - Composição de PDF com footer em toda página + página final "Relatório de Assinaturas"
 - Assinatura por código via e-mail (TTL 15min, max 5 tentativas, bcrypt)
 - Assinatura em canvas (visual, opcional)
-- Assinatura ICP-Brasil A1 — e-CPF e e-CNPJ (PKCS#7 via TCPDF)
+- Selo ICP-Brasil da plataforma (modelo ZapSign): todo documento concluído recebe PKCS#7 com o e-CNPJ A1 da Moduhub e a cadeia até a Raiz v5 (`PlatformSealService`). Validado em 2026-10-16 com o cert real (DCS SOFTWARE ENGINEERING LTDA, AC SyngularID Múltipla, válido até 16/10/2027): assinatura e cadeia conferem no `openssl cms -verify` e adulteração quebra o selo
+- Assinatura com certificado do próprio signatário removida em 2026-10-16 (TCPDF só grava um PKCS#7 por PDF e o selo da plataforma ocupa essa vaga)
 - QR code de validação na página de assinaturas
-- Selo "INTEGRIDADE CERTIFICADA · ICP-BRASIL" condicional
+- Selo "DOCUMENTO SELADO · ICP-BRASIL" no relatório de assinaturas e na página de verificação
 - Página pública de validação `/v/{SHORT_ID}` com trilha de auditoria
 - Webhooks: `document.viewed/signed/completed/rejected`
 - Mailpit configurado para desenvolvimento
 
 ---
 
-## 🧪 Validação pendente com cert real
+## 🧪 Validação pendente do selo
 
-Hoje o ICP A1 só foi validado com certificado fake gerado via openssl. Falta o teste com cert real.
-
-- **Agendado**: 2026-10-16 às 15:00
-- Certificado comprado: **e-CNPJ A1** (SaiberId/Soluti)
-- Checklist do teste:
-  - [ ] Fazer upload do `.pfx` real no form de assinatura ICP (`/sign/{token}`)
-  - [ ] Assinar um doc end-to-end sem erro de parse / senha / expiração
-  - [ ] Abrir PDF final no **Adobe Reader** e confirmar que a cadeia valida (raiz ICP-Brasil → AC Soluti → cert)
-  - [ ] Confirmar que o CNPJ extraído do CN pelo `IcpCertificateService` bate com o CNPJ cadastrado no signatário (match PJ)
-  - [ ] Conferir selo "INTEGRIDADE CERTIFICADA · ICP-BRASIL" no PDF e marca `signature_type=icp` no banco
-  - [ ] `openssl smime -verify` externo retorna "Verification successful"
+- [x] **validar.iti.gov.br (16/10/2026 18:04): "Assinatura aprovada", assinatura eletrônica qualificada (MP 2.200-2/01 e Lei 14.063/20), e-CNPJ DCS Software Engineering Ltda reconhecido**
+- [ ] Ler o Relatório de Conformidade do ITI (alertas de política PAdES ou carimbo de tempo)
+- [ ] Abrir um PDF selado no **Adobe Reader** e confirmar o painel de assinaturas verde (cadeia ICP-Brasil confiável). Já conferido via `openssl cms -verify`; falta o Adobe
+- [ ] Produção: certificado fora da pasta do app (`SIGNATURES_PLATFORM_CERT_PATH`), `chmod 600`, senha em `SIGNATURES_PLATFORM_CERT_PASSWORD` no secret da hospedagem
+- [ ] Alerta de vencimento do certificado da plataforma (vence em 16/10/2027) e de documentos concluídos sem selo (`Log::critical` hoje)
 
 ---
 
@@ -66,7 +61,7 @@ Fatias para deixar o módulo pronto para produção antes de expandir:
 - [ ] **Guia do desenvolvedor** — arquitetura, convenções (já em CLAUDE.md), como criar um novo módulo
 - [ ] **Documentação da API REST** — OpenAPI/Swagger ou Scribe, com exemplos de curl
 - [ ] **Guia de integração webhook** — eventos disponíveis, formato do payload, verificação HMAC, retries
-- [ ] **Guia ICP-Brasil** — explicar diferença A1/A3, como obter cert, limitação de 1 ICP/doc, carimbo de tempo (quando entrar)
+- [ ] **Guia do selo ICP-Brasil** — o que o selo da plataforma garante (integridade) e o que não garante (assinatura qualificada do signatário), como verificar no Adobe, carimbo de tempo (quando entrar)
 - [ ] **Changelog** — manter CHANGELOG.md convencional
 
 ### API REST pública
@@ -162,6 +157,6 @@ Previsto como segundo módulo da plataforma. Estratégia: "cada nota emitida = l
 - Backup automatizado de PDFs assinados (S3 cross-region)
 - Reserva de slugs de subdomínio para `tenant.moduhub.com.br`
 - Carimbo de tempo ICP-Brasil (ACT) via BRy/cert.sign
-- Múltiplos ICP por documento (requer biblioteca de incremental PDF signing)
-- Validação OCSP/CRL em tempo real das assinaturas ICP
+- Assinatura com certificado do próprio signatário junto com o selo da plataforma (requer biblioteca de incremental PDF signing; opção (c) de 2026-10-16)
+- Embutir OCSP/CRL no selo (LTV) para o Adobe validar mesmo depois do vencimento do certificado
 - Internacionalização (i18n) do painel — hoje é hard-coded pt-BR

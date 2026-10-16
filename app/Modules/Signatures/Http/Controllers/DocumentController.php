@@ -116,6 +116,7 @@ class DocumentController extends Controller
                     'id' => $s->getKey(),
                     'order' => $s->order,
                     'name' => $s->name,
+                    'role' => $s->role,
                     'email' => $s->email,
                     'cpf' => $s->cpf,
                     'cnpj' => $s->cnpj,

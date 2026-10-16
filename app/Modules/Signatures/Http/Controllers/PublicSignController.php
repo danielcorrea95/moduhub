@@ -7,7 +7,6 @@ use App\Modules\Signatures\Contracts\SignatureRepositoryContract;
 use App\Modules\Signatures\Contracts\SignatureServiceContract;
 use App\Modules\Signatures\Http\Requests\RejectSignatureRequest;
 use App\Modules\Signatures\Http\Requests\SendVerificationCodeRequest;
-use App\Modules\Signatures\Http\Requests\SignWithIcpRequest;
 use App\Modules\Signatures\Http\Requests\VerifyAndSignRequest;
 use App\Modules\Signatures\Models\Document;
 use App\Modules\Signatures\Models\DocumentSigner;
@@ -124,26 +123,6 @@ class PublicSignController extends Controller
         return redirect()->route('public-sign.thanks', $token);
     }
 
-    public function verifyAndSignIcp(SignWithIcpRequest $request, string $token): RedirectResponse
-    {
-        $signer = $this->repo->findSignerByToken($token);
-        abort_if($signer === null, 404);
-
-        $pkcs12Binary = file_get_contents($request->file('certificate')->getRealPath());
-        if ($pkcs12Binary === false) {
-            abort(422);
-        }
-
-        $this->service->signWithIcp(
-            $signer,
-            $pkcs12Binary,
-            $request->string('password')->toString(),
-            $request,
-        );
-
-        return redirect()->route('public-sign.thanks', $token);
-    }
-
     public function reject(RejectSignatureRequest $request, string $token): RedirectResponse
     {
         $signer = $this->repo->findSignerByToken($token);
@@ -174,6 +153,7 @@ class PublicSignController extends Controller
         return [
             'id' => $signer->getKey(),
             'name' => $signer->name,
+            'role' => $signer->role,
             'email' => $signer->email,
             'cpf' => $signer->cpf,
             'order' => $signer->order,

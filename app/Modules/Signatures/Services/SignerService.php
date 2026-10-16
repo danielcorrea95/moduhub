@@ -71,6 +71,7 @@ class SignerService implements SignerServiceContract
                 'document_id' => $document->getKey(),
                 'order' => $attrs['order'] ?? $this->signers->nextOrder($document),
                 'name' => $attrs['name'],
+                'role' => $this->trimmedOrNull($attrs['role'] ?? null),
                 'email' => $email,
                 'cpf' => $attrs['cpf'] ?? null,
                 'cnpj' => $this->digitsOrNull($attrs['cnpj'] ?? null),
@@ -106,9 +107,13 @@ class SignerService implements SignerServiceContract
             $attrs['cnpj'] = $this->digitsOrNull($attrs['cnpj']);
         }
 
+        if (array_key_exists('role', $attrs)) {
+            $attrs['role'] = $this->trimmedOrNull($attrs['role']);
+        }
+
         return DB::transaction(function () use ($signer, $actor, $attrs) {
             $signer->update(array_intersect_key($attrs, array_flip([
-                'name', 'email', 'cpf', 'cnpj', 'phone', 'auth_method',
+                'name', 'role', 'email', 'cpf', 'cnpj', 'phone', 'auth_method',
             ])));
 
             $this->documents->recordEvent($signer->document, DocumentEvent::TYPE_UPDATED, $actor, [
@@ -175,6 +180,13 @@ class SignerService implements SignerServiceContract
         $digits = preg_replace('/\D/', '', (string) $value);
 
         return $digits === '' ? null : $digits;
+    }
+
+    protected function trimmedOrNull(?string $value): ?string
+    {
+        $value = trim((string) $value);
+
+        return $value === '' ? null : $value;
     }
 
     protected function resequence(Document $document): void

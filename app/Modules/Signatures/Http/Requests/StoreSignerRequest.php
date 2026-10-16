@@ -21,11 +21,11 @@ class StoreSignerRequest extends FormRequest
             DocumentSigner::AUTH_EMAIL,
             DocumentSigner::AUTH_SMS,
             DocumentSigner::AUTH_EMAIL_AND_SMS,
-            DocumentSigner::AUTH_ICP,
         ]);
 
         return [
             'name' => 'required|string|max:255',
+            'role' => 'nullable|string|max:60',
             'email' => 'required|email|max:255',
             'cpf' => 'nullable|string|max:14',
             'cnpj' => 'nullable|string|max:18',

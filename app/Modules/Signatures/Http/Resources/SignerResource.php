@@ -16,6 +16,7 @@ class SignerResource extends JsonResource
             'id' => $this->getKey(),
             'order' => $this->order,
             'name' => $this->name,
+            'role' => $this->role,
             'email' => $this->email,
             'cpf' => $this->cpf,
             'cnpj' => $this->cnpj,

@@ -13,7 +13,7 @@ class ModuleSeeder extends Seeder
             [
                 'key' => Module::SIGNATURES,
                 'name' => 'Assinatura de Documentos',
-                'description' => 'Assinatura eletrônica e digital (ICP-Brasil) de documentos PDF.',
+                'description' => 'Assinatura eletrônica de documentos PDF, com selo ICP-Brasil no arquivo final.',
             ],
             [
                 'key' => Module::INVOICES,

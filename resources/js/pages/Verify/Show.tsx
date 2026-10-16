@@ -18,13 +18,19 @@ interface VerifyDocument {
     sent_at: string | null;
     completed_at: string | null;
     expires_at: string | null;
-    has_icp_signature: boolean;
+    seal: {
+        sealed_at: string | null;
+        certificate_subject: string | null;
+        certificate_issuer: string | null;
+        certificate_valid_to: string | null;
+    } | null;
 }
 
 interface VerifySigner {
     id: number | string;
     order: number;
     name: string;
+    role: string | null;
     email: string;
     cpf: string | null;
     cnpj: string | null;
@@ -77,6 +83,7 @@ const EVENT_LABELS: Record<string, string> = {
     expired: 'Expirado',
     downloaded: 'Baixado',
     finalized: 'Finalizado',
+    copies_sent: 'Cópia assinada enviada aos envolvidos',
 };
 
 type Tone = 'signed' | 'pending' | 'rejected' | 'idle';
@@ -208,16 +215,31 @@ export default function VerifyShow({ document, signers, events, tenant, short, c
                                 )}
                             </dl>
 
-                            {document.has_icp_signature && (
+                            {document.seal && (
                                 <div className="mt-6 flex gap-3 rounded-lg bg-sent-soft px-4 py-3 text-sm text-sent">
                                     <ShieldCheck className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-                                    <div>
-                                        <p className="font-semibold">Assinatura digital ICP-Brasil</p>
+                                    <div className="min-w-0">
+                                        <p className="font-semibold">Documento selado com certificado ICP-Brasil</p>
                                         <p className="mt-0.5 text-foreground/80">
-                                            Este documento contém assinatura digital ICP-Brasil, com validade
-                                            jurídica equivalente à assinatura presencial (MP 2.200-2/2001 e Lei
-                                            14.063/2020).
+                                            O PDF final foi assinado digitalmente pela plataforma em{' '}
+                                            <span className="font-mono">{formatTimestamp(document.seal.sealed_at)}</span>.
+                                            Qualquer alteração no arquivo invalida o selo, e leitores como o Adobe
+                                            Reader mostram o aviso.
                                         </p>
+                                        <dl className="mt-2 space-y-1 text-xs text-foreground/80">
+                                            <div>
+                                                <dt className="inline">Certificado: </dt>
+                                                <dd className="inline font-mono break-all">
+                                                    {document.seal.certificate_subject ?? '—'}
+                                                </dd>
+                                            </div>
+                                            <div>
+                                                <dt className="inline">Emitido por: </dt>
+                                                <dd className="inline font-mono break-all">
+                                                    {document.seal.certificate_issuer ?? '—'}
+                                                </dd>
+                                            </div>
+                                        </dl>
                                     </div>
                                 </div>
                             )}
@@ -256,6 +278,11 @@ export default function VerifyShow({ document, signers, events, tenant, short, c
                                                     <span className="text-muted-foreground tabular-nums">{s.order}.</span>{' '}
                                                     {s.name}
                                                 </p>
+                                                {s.role && (
+                                                    <p className="text-sm text-foreground/80">
+                                                        {s.status === 'signed' ? 'Assinou como' : 'Assina como'} {s.role}
+                                                    </p>
+                                                )}
                                                 <p className="text-sm break-all text-muted-foreground">{s.email}</p>
                                                 {(s.cpf || s.cnpj) && (
                                                     <p className="text-sm text-muted-foreground">

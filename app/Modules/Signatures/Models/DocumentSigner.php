@@ -20,9 +20,9 @@ class DocumentSigner extends Model
     public const AUTH_EMAIL = 'email';
     public const AUTH_SMS = 'sms';
     public const AUTH_EMAIL_AND_SMS = 'email_and_sms';
-    public const AUTH_ICP = 'icp';
 
     public const TYPE_ELECTRONIC = 'electronic';
+    /** Só em registros antigos: a assinatura com certificado do próprio signatário saiu do produto. */
     public const TYPE_ICP = 'icp';
 
     protected $fillable = [
@@ -30,6 +30,7 @@ class DocumentSigner extends Model
         'document_id',
         'order',
         'name',
+        'role',
         'email',
         'cpf',
         'cnpj',

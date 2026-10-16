@@ -28,6 +28,7 @@
         <env name="MAIL_MAILER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="INVOICES_SEFIN_DRIVER" value="fake"/>
+        <env name="SIGNATURES_PLATFORM_CERT_PASSWORD" value=""/>
         <env name="SESSION_DRIVER" value="array"/>
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>

@@ -72,7 +72,7 @@ class SignaturesApiTest extends TestCase
                 'sign_order' => 'sequential',
                 'send' => true,
                 'signers' => [
-                    ['name' => 'Lisiane Fonseca', 'email' => 'lisiane@example.com', 'cnpj' => '12.345.678/0001-90'],
+                    ['name' => 'Lisiane Fonseca', 'role' => '  Responsável financeiro ', 'email' => 'lisiane@example.com', 'cnpj' => '12.345.678/0001-90'],
                     ['name' => 'Dionísio Hatzenberger', 'email' => 'dionisio@example.com'],
                 ],
             ], ['Accept' => 'application/json']);
@@ -81,6 +81,8 @@ class SignaturesApiTest extends TestCase
             ->assertJsonPath('data.status', Document::STATUS_SENT)
             ->assertJsonPath('data.external_id', 'CRM-0019')
             ->assertJsonPath('data.signers.0.cnpj', '12345678000190')
+            ->assertJsonPath('data.signers.0.role', 'Responsável financeiro')
+            ->assertJsonPath('data.signers.1.role', null)
             ->assertJsonMissingPath('data.signers.0.token');
 
         // Sequencial: só o primeiro recebe link e e-mail agora.
@@ -116,16 +118,12 @@ class SignaturesApiTest extends TestCase
 
     public function test_failed_send_leaves_no_half_created_document(): void
     {
-        // Dois signatários ICP violam a regra do envio: nada pode ficar gravado.
+        // Enviar sem signatários viola a regra do envio: nada pode ficar gravado.
         $this->withToken($this->key(['signatures:write']))
             ->postJson('/api/v1/signatures/documents', [
                 'file_base64' => base64_encode($this->pdf()),
                 'name' => 'Inválido',
                 'send' => true,
-                'signers' => [
-                    ['name' => 'A', 'email' => 'a@example.com', 'auth_method' => 'icp'],
-                    ['name' => 'B', 'email' => 'b@example.com', 'auth_method' => 'icp'],
-                ],
             ])
             ->assertUnprocessable()
             ->assertJsonValidationErrors('signers');
