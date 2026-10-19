@@ -3,6 +3,7 @@
 namespace App\Modules\Invoices\Providers;
 
 use App\Modules\Invoices\Console\CheckCertificateExpiry;
+use App\Modules\Invoices\Console\ReencryptCertificates;
 use App\Modules\Invoices\Console\SyncDistributedDocuments;
 use App\Modules\Invoices\Console\SyncMunicipalAgreements;
 use App\Modules\Invoices\Contracts\CertificateEventRepositoryContract;
@@ -84,7 +85,7 @@ class InvoicesServiceProvider extends ServiceProvider
         Gate::policy(ReceivedInvoice::class, ReceivedInvoicePolicy::class);
 
         if ($this->app->runningInConsole()) {
-            $this->commands([SyncMunicipalAgreements::class, SyncDistributedDocuments::class, CheckCertificateExpiry::class]);
+            $this->commands([SyncMunicipalAgreements::class, SyncDistributedDocuments::class, CheckCertificateExpiry::class, ReencryptCertificates::class]);
         }
 
         // Convênios mudam devagar (adesões são publicadas algumas vezes por mês): uma varredura por semana basta.

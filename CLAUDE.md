@@ -78,6 +78,12 @@ app/Modules/<ModuleName>/
 - Jobs e comandos que trabalham para um tenant usam `app(CurrentTenant::class)->run($tenant, fn () => ...)`. Serviços que recebem `Tenant $tenant` como argumento também. `run()` recusa trocar para outro tenant quando já há um no contexto.
 - Jobs despachados dentro de um tenant levam o `tenant_id` no payload e rodam nele no worker (`App\Tenancy\QueueTenancy`). Despachado sem contexto, roda sem contexto.
 
+## Certificados digitais
+
+- O `.pfx` e a senha do emitente usam o cast `CertificateEncrypted` (chave `CERTIFICATES_ENCRYPTION_KEY`, nunca a `APP_KEY`) e nunca saem em Resource, log ou resposta.
+- A chave privada do cliente só é aberta por `IssuerCredentialsLoader::load($issuer, CertificateEvent::PURPOSE_*)`, que grava o uso na trilha `invoice_certificate_events`. Uso novo = finalidade nova em `CertificateEvent`, não um atalho que pule o `load()`.
+- Operação, vencimento e incidentes: `docs/runbooks/certificados.md`.
+
 ## Testes (quando houver)
 
 - Feature tests em `tests/Feature/<Module>/` — testam o fluxo HTTP → Service → DB.
