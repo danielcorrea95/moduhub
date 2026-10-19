@@ -13,7 +13,7 @@ class IcpCertificateService
      * key and the extracted identity fields. Throws ValidationException with
      * a user-facing message on any failure (bad password, expired cert, etc).
      */
-    public function parse(string $pkcs12Binary, string $password): IcpCertificate
+    public function parse(string $pkcs12Binary, #[\SensitiveParameter] string $password): IcpCertificate
     {
         $certs = [];
         if (! @openssl_pkcs12_read($pkcs12Binary, $certs, $password)) {

@@ -44,7 +44,7 @@ class IssuerService implements IssuerServiceContract
         });
     }
 
-    public function attachCertificate(Tenant $tenant, string $pkcs12Binary, string $password): Issuer
+    public function attachCertificate(Tenant $tenant, string $pkcs12Binary, #[\SensitiveParameter] string $password): Issuer
     {
         $issuer = $this->requireIssuer($tenant);
 

@@ -47,7 +47,7 @@ class InvoiceService implements InvoiceServiceContract
     public function issue(Tenant $tenant, ?User $creator, array $data): Invoice
     {
         $externalId = $data['external_id'] ?? null;
-        if ($externalId !== null && ($existing = $this->invoices->findReusableByExternalId($externalId)) !== null) {
+        if ($externalId !== null && ($existing = $this->invoices->findReusableByExternalId($tenant->getKey(), $externalId)) !== null) {
             // Reenvio do mesmo pedido (retry do CRM após timeout): devolve a nota que já existe em vez de emitir outra.
             return $existing;
         }
@@ -79,7 +79,7 @@ class InvoiceService implements InvoiceServiceContract
     /** @param  array<string, mixed>  $substitution  colunas do grupo subst quando a nota substitui outra */
     protected function createAndTransmit(Tenant $tenant, ?User $creator, array $data, array $substitution = []): Invoice
     {
-        $issuer = $this->readyIssuer();
+        $issuer = $this->readyIssuer($tenant);
         $data = $this->withIssuerDefaults($data, $issuer);
         $credentials = $this->credentials->load($issuer);
         // Antes de reservar o número: código sem parametrização no município seria rejeitado com E0312.
@@ -328,9 +328,9 @@ class InvoiceService implements InvoiceServiceContract
         return $data;
     }
 
-    protected function readyIssuer(): Issuer
+    protected function readyIssuer(Tenant $tenant): Issuer
     {
-        $issuer = $this->issuers->forCurrentTenant();
+        $issuer = $this->issuers->forTenant($tenant->getKey());
 
         if ($issuer === null) {
             throw ValidationException::withMessages(['issuer' => 'Configure o emitente antes de emitir notas.']);

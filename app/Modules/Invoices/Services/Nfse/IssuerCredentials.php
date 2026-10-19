@@ -8,11 +8,17 @@ namespace App\Modules\Invoices\Services\Nfse;
 final readonly class IssuerCredentials
 {
     public function __construct(
-        public string $privateKeyPem,
+        #[\SensitiveParameter] public string $privateKeyPem,
         public string $certificatePem,
         /** @var list<string> certificados intermediários da cadeia, em PEM */
         public array $chainPem = [],
     ) {}
+
+    /** dump(), print_r e os relatórios de erro mostram o objeto sem a chave privada. */
+    public function __debugInfo(): array
+    {
+        return ['privateKeyPem' => '[oculta]', 'certificatePem' => $this->certificatePem, 'chainPem' => $this->chainPem];
+    }
 
     /** Certificado em base64 (DER), como vai no X509Certificate da assinatura. */
     public function certificateBase64(): string

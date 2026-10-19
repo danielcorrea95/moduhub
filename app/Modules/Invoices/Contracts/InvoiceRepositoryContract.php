@@ -13,8 +13,11 @@ interface InvoiceRepositoryContract
     /** @return Collection<string, int> total de notas por status */
     public function countByStatus(): Collection;
 
-    /** Nota já criada para o mesmo pedido do sistema do cliente e que ainda vale (não rejeitada). */
-    public function findReusableByExternalId(string $externalId): ?Invoice;
+    /**
+     * Nota já criada para o mesmo pedido do sistema do cliente e que ainda vale (não rejeitada).
+     * O tenant é explícito porque o external_id só é único dentro de um workspace.
+     */
+    public function findReusableByExternalId(string $tenantId, string $externalId): ?Invoice;
 
     /** Substituta da nota ainda sem resposta da Sefin. */
     public function findPendingReplacement(Invoice $original): ?Invoice;

@@ -44,7 +44,7 @@ class IssuerCredentialsLoader
         return $this->fromPkcs12((string) file_get_contents($path), (string) $password);
     }
 
-    public function fromPkcs12(string $pfx, string $password): ?IssuerCredentials
+    public function fromPkcs12(string $pfx, #[\SensitiveParameter] string $password): ?IssuerCredentials
     {
         $certs = [];
         if (! openssl_pkcs12_read($pfx, $certs, $password)) {

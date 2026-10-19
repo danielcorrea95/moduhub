@@ -40,9 +40,11 @@ class InvoiceRepository implements InvoiceRepositoryContract
             ->map(fn ($total) => (int) $total);
     }
 
-    public function findReusableByExternalId(string $externalId): ?Invoice
+    public function findReusableByExternalId(string $tenantId, string $externalId): ?Invoice
     {
         return Invoice::query()
+            ->withoutTenantScope()
+            ->where('tenant_id', $tenantId)
             ->where('external_id', $externalId)
             ->where('status', '!=', Invoice::STATUS_REJECTED)
             ->latest()

@@ -16,7 +16,7 @@ interface IssuerServiceContract
      * @throws \Illuminate\Validation\ValidationException quando a senha está errada, o certificado
      *         não serve para NFS-e ou pertence a outra empresa.
      */
-    public function attachCertificate(Tenant $tenant, string $pkcs12Binary, string $password): Issuer;
+    public function attachCertificate(Tenant $tenant, string $pkcs12Binary, #[\SensitiveParameter] string $password): Issuer;
 
     public function removeCertificate(Tenant $tenant): Issuer;
 }

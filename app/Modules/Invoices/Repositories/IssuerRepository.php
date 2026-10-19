@@ -12,6 +12,11 @@ class IssuerRepository implements IssuerRepositoryContract
         return Issuer::query()->first();
     }
 
+    public function forTenant(string $tenantId): ?Issuer
+    {
+        return Issuer::query()->withoutTenantScope()->where('tenant_id', $tenantId)->first();
+    }
+
     public function lockForNumbering(Issuer $issuer): Issuer
     {
         // Pela chave do emitente já resolvido: o scope de tenant não acrescenta nada aqui.

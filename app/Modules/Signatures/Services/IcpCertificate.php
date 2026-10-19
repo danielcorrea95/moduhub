@@ -8,7 +8,7 @@ final readonly class IcpCertificate
 {
     public function __construct(
         public string $certPem,
-        public string $privateKeyPem,
+        #[\SensitiveParameter] public string $privateKeyPem,
         public string $subjectCn,
         public ?string $cpf,
         public ?string $cnpj,
@@ -19,6 +19,12 @@ final readonly class IcpCertificate
         /** Cadeia de ACs que veio no .pfx, para quem valida o PDF chegar até a raiz ICP-Brasil. */
         public array $chainPem = [],
     ) {}
+
+    /** dump(), print_r e os relatórios de erro mostram o objeto sem a chave privada. */
+    public function __debugInfo(): array
+    {
+        return ['privateKeyPem' => '[oculta]'] + get_object_vars($this);
+    }
 
     public function kind(): string
     {

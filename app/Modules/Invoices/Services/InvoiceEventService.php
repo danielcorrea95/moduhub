@@ -70,7 +70,8 @@ class InvoiceEventService
             throw ValidationException::withMessages(['manifestation' => 'Esta nota já tem manifestação registrada.']);
         }
 
-        $issuer = $this->issuers->forCurrentTenant();
+        // A manifestação sai assinada pelo destinatário da nota, que é o workspace dono dela.
+        $issuer = $this->issuers->forTenant($receivedInvoice->tenant_id);
         if ($issuer === null || ! $issuer->isReadyToIssue()) {
             throw ValidationException::withMessages(['manifestation' => 'A manifestação é assinada com o certificado do emitente: configure-o antes.']);
         }
