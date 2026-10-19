@@ -39,6 +39,12 @@ class InvoicePolicy
             && in_array($this->role($user), [TenantUser::ROLE_OWNER, TenantUser::ROLE_ADMIN], true);
     }
 
+    /** Substituir também cancela a nota original na Sefin: mesma alçada do cancelamento. */
+    public function replace(User $user, Invoice $invoice): bool
+    {
+        return $this->cancel($user, $invoice);
+    }
+
     protected function role(User $user): ?string
     {
         $tenant = $this->currentTenant->get();

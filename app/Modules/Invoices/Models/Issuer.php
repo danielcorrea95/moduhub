@@ -12,32 +12,44 @@ use Illuminate\Database\Eloquent\Model;
  */
 class Issuer extends Model
 {
-    use HasUlids, BelongsToTenant;
+    use BelongsToTenant, HasUlids;
 
     protected $table = 'invoice_issuers';
 
     /** Produção restrita é o ambiente de testes da Sefin Nacional: notas emitidas lá não têm validade fiscal. */
     public const ENV_RESTRICTED = 'restricted';
+
     public const ENV_PRODUCTION = 'production';
+
     public const ENVIRONMENTS = [self::ENV_RESTRICTED, self::ENV_PRODUCTION];
 
     /** Campo opSimpNac da DPS. */
     public const SIMPLES_NOT_OPTANT = 1;
+
     public const SIMPLES_MEI = 2;
+
     public const SIMPLES_ME_EPP = 3;
 
     /** Campo regApTribSN da DPS, só informado para ME/EPP optante. */
     public const SIMPLES_REGIME_ALL_IN_SN = 1;
+
     public const SIMPLES_REGIME_ISS_OUTSIDE_SN = 2;
+
     public const SIMPLES_REGIME_ALL_OUTSIDE_SN = 3;
 
     /** Campo regEspTrib da DPS. */
     public const SPECIAL_REGIME_NONE = 0;
+
     public const SPECIAL_REGIME_COOPERATIVE = 1;
+
     public const SPECIAL_REGIME_ESTIMATE = 2;
+
     public const SPECIAL_REGIME_MUNICIPAL_MICRO = 3;
+
     public const SPECIAL_REGIME_NOTARY = 4;
+
     public const SPECIAL_REGIME_SELF_EMPLOYED = 5;
+
     public const SPECIAL_REGIME_PROFESSIONAL_SOCIETY = 6;
 
     public const SIMPLES_NACIONAL_LABELS = [
@@ -79,6 +91,13 @@ class Issuer extends Model
         'simples_nacional',
         'simples_regime',
         'special_regime',
+        'ibs_cbs_cst',
+        'ibs_cbs_class_code',
+        'ibs_cbs_operation_code',
+        'default_service',
+        'default_approximate_taxes',
+        'email_taker',
+        'danfse_stub',
         'phone',
         'email',
         'environment',
@@ -97,10 +116,22 @@ class Issuer extends Model
         'simples_regime' => 'integer',
         'special_regime' => 'integer',
         'next_dps_number' => 'integer',
+        'default_service' => 'array',
+        'default_approximate_taxes' => 'array',
+        'email_taker' => 'boolean',
+        'danfse_stub' => 'boolean',
+        'dfe_cursor' => 'array',
+        'dfe_synced_at' => 'datetime',
         'certificate_valid_from' => 'datetime',
         'certificate_valid_until' => 'datetime',
         'certificate_uploaded_at' => 'datetime',
     ];
+
+    /** O contador já definiu a classificação padrão do IBS/CBS deste emitente. */
+    public function hasIbsCbsDefaults(): bool
+    {
+        return $this->ibs_cbs_cst !== null && $this->ibs_cbs_class_code !== null && $this->ibs_cbs_operation_code !== null;
+    }
 
     public function hasCertificate(): bool
     {

@@ -18,7 +18,7 @@ import type { NavGroup, SharedData } from '@/types';
 import { Link, usePage } from '@inertiajs/react';
 import {
     BookOpen,
-    Building2,
+    Building2, Inbox, MapPinned,
     FileSignature,
     House,
     KeyRound,
@@ -77,6 +77,18 @@ function useNavGroups(): NavGroup[] {
                     href: route('invoices.issuer.edit'),
                     icon: Building2,
                     isActive: current('invoices.issuer.*'),
+                },
+                {
+                    title: 'Recebidas',
+                    href: route('invoices.received.index'),
+                    icon: Inbox,
+                    isActive: current('invoices.received.*'),
+                },
+                {
+                    title: 'Municípios',
+                    href: route('invoices.agreements'),
+                    icon: MapPinned,
+                    isActive: current('invoices.agreements'),
                 },
             ],
         });

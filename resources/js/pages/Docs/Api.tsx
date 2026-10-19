@@ -56,8 +56,16 @@ const NAV: DocsNavGroup[] = [
             { id: 'consultar-nota', title: 'Consultar nota' },
             { id: 'sincronizar-nota', title: 'Sincronizar nota pendente' },
             { id: 'cancelar-nota', title: 'Cancelar nota' },
+            { id: 'substituir-nota', title: 'Substituir nota' },
+            { id: 'analise-fiscal', title: 'Cancelamento por análise fiscal' },
+            { id: 'eventos-nota', title: 'Eventos da nota' },
+            { id: 'enviar-email', title: 'Enviar por e-mail' },
+            { id: 'consumo', title: 'Consumo do plano' },
+            { id: 'notas-recebidas', title: 'Notas recebidas' },
+            { id: 'manifestar', title: 'Manifestar nota recebida' },
             { id: 'baixar-xml', title: 'Baixar XML' },
             { id: 'baixar-danfse', title: 'Baixar DANFSe (PDF)' },
+            { id: 'listar-municipios', title: 'Municípios conveniados' },
         ],
     },
     {
@@ -121,12 +129,31 @@ const INVOICE = {
         municipal_registration: null,
         address: { postal_code: '93510000', street: 'Rua Júlio de Castilhos', number: '100', complement: null, district: 'Centro', city_code: '4313409' },
     },
+    intermediary: null,
     service: { national_tax_code: '010701', municipal_tax_code: null, nbs_code: null, description: 'Suporte técnico mensal - outubro/2026', city_code: null },
-    values: { amount: '1500.00', iss_rate: null, iss_withheld: false, iss_taxation: 1, approximate_taxes: null },
+    values: {
+        amount: '1500.00',
+        discounts: null,
+        deduction: null,
+        iss_rate: null,
+        iss_withheld: false,
+        iss_withholder: null,
+        iss_taxation: 1,
+        immunity_type: null,
+        approximate_taxes: null,
+        ibs_cbs: { cst: '000', class_code: '000001', operation_code: '100301', final_consumer: null },
+    },
     rejection: null,
     last_error: null,
     last_attempt_at: '2026-10-16T15:21:03-03:00',
     cancellation: null,
+    substitution: null,
+    replacement: null,
+    delivery: { notify_taker: true, emailed_at: '2026-10-16T15:21:09-03:00', last_error: null },
+    cancellation_review: null,
+    taker_manifestation: null,
+    blocked_at: null,
+    is_overage: false,
     has_xml: true,
     created_at: '2026-10-16T15:21:02-03:00',
     updated_at: '2026-10-16T15:21:03-03:00',
@@ -139,7 +166,7 @@ const INVOICE_FIELDS: Param[] = [
         description: (
             <>
                 <C>issued</C> emitida, <C>rejected</C> rejeitada pela Sefin (motivos em <C>rejection</C>), <C>pending</C> sem resposta
-                da Sefin e <C>cancelled</C> cancelada.
+                da Sefin, <C>cancelled</C> cancelada e <C>replaced</C> substituída por outra nota.
             </>
         ),
     },
@@ -147,7 +174,7 @@ const INVOICE_FIELDS: Param[] = [
     { name: 'dps', type: 'object', description: 'Id, série, número e data/hora da DPS que originou a nota. O número é reservado na emissão.' },
     { name: 'access_key, nfse_number', type: 'string | null', description: 'Chave de acesso (50 dígitos) e número da NFS-e, preenchidos quando a nota sai.' },
     { name: 'issued_at', type: 'string | null', description: 'Data e hora de processamento na Sefin Nacional.' },
-    { name: 'taker, service, values', type: 'object', description: 'Os dados enviados na emissão, já normalizados (sem máscara).' },
+    { name: 'taker, intermediary, service, values', type: 'object', description: 'Os dados enviados na emissão, já normalizados (sem máscara).' },
     {
         name: 'rejection',
         type: 'array | null',
@@ -159,6 +186,46 @@ const INVOICE_FIELDS: Param[] = [
     },
     { name: 'last_error', type: 'string | null', description: 'Por que a última tentativa ficou sem resposta, quando o status é pending.' },
     { name: 'cancellation', type: 'object | null', description: 'Motivo, justificativa e data do cancelamento.' },
+    {
+        name: 'substitution',
+        type: 'object | null',
+        description: (
+            <>
+                Nesta nota substituta: <C>replaces_invoice_id</C>, <C>replaces_access_key</C>, <C>reason_code</C> e <C>reason</C>.
+            </>
+        ),
+    },
+    {
+        name: 'replacement',
+        type: 'object | null',
+        description: (
+            <>
+                Na nota substituída: <C>invoice_id</C> e <C>access_key</C> da substituta e <C>replaced_at</C>.
+            </>
+        ),
+    },
+    { name: 'delivery', type: 'object', description: 'Envio por e-mail ao tomador: notify_taker, emailed_at e last_error.' },
+    {
+        name: 'cancellation_review',
+        type: 'object | null',
+        description: (
+            <>
+                Pedido de cancelamento por análise fiscal: <C>status</C> (<C>requested</C>, <C>approved</C>, <C>denied</C>), motivo e datas.
+            </>
+        ),
+    },
+    {
+        name: 'taker_manifestation',
+        type: 'object | null',
+        description: (
+            <>
+                Manifestação de quem recebeu a nota, lida no ADN: <C>type</C> (<C>confirmed</C>, <C>rejected</C>, <C>rejection_annulled</C>),{' '}
+                <C>by</C> (<C>taker</C>, <C>intermediary</C>, <C>tacit</C>), motivo e data.
+            </>
+        ),
+    },
+    { name: 'blocked_at', type: 'string | null', description: 'Quando a prefeitura bloqueou a nota por ofício; null depois do desbloqueio.' },
+    { name: 'is_overage', type: 'boolean', description: 'Emitida além da cota do plano, entra na cobrança de excedente.' },
     { name: 'has_xml', type: 'boolean', description: 'Se o XML da NFS-e já está disponível para download.' },
 ];
 
@@ -177,6 +244,7 @@ const ISSUER = {
     simples_nacional: 3,
     simples_regime: 1,
     special_regime: 0,
+    ibs_cbs: { cst: '000', class_code: '000001', operation_code: '100301' },
     phone: '5135940000',
     email: 'fiscal@example.com',
     environment: 'restricted',
@@ -230,6 +298,16 @@ const ISSUER_FIELDS: Param[] = [
             <>
                 <C>0</C> nenhum, <C>1</C> ato cooperado, <C>2</C> estimativa, <C>3</C> microempresa municipal, <C>4</C> notário,{' '}
                 <C>5</C> profissional autônomo, <C>6</C> sociedade de profissionais.
+            </>
+        ),
+    },
+    {
+        name: 'ibs_cbs',
+        type: 'object',
+        description: (
+            <>
+                Classificação padrão do IBS/CBS: <C>cst</C> (3 dígitos), <C>class_code</C> (cClassTrib, 6 dígitos, começa pelo CST) e{' '}
+                <C>operation_code</C> (cIndOp, 6 dígitos). Sem ela, a DPS sai sem o grupo IBS/CBS.
             </>
         ),
     },
@@ -851,11 +929,34 @@ export default function ApiDocs({ baseUrl, scopes, events, rateLimitPerMinute }:
                             { name: 'trade_name', type: 'string', description: 'Nome fantasia.' },
                             { name: 'cnpj', type: 'string', required: true, description: 'Com ou sem máscara. Os dígitos verificadores são conferidos.' },
                             { name: 'municipal_registration', type: 'string', description: 'Inscrição municipal, até 15 caracteres.' },
-                            { name: 'city_code', type: 'string', required: true, description: 'Código IBGE do município emissor, 7 dígitos.' },
-                            { name: 'city_name, state', type: 'string', description: 'Nome do município e UF, só para exibição.' },
+                            { name: 'city_code', type: 'string', required: true, description: 'Código IBGE do município emissor, 7 dígitos, conferido na tabela do IBGE.' },
+                            { name: 'city_name, state', type: 'string', description: 'Ignorados quando o código existe: nome e UF vêm da tabela do IBGE.' },
                             { name: 'simples_nacional', type: 'integer', required: true, description: <><C>1</C>, <C>2</C> ou <C>3</C>, como no objeto emitente.</> },
                             { name: 'simples_regime', type: 'integer', description: <>Obrigatório quando <C>simples_nacional</C> é <C>3</C>; ignorado nos demais casos.</> },
                             { name: 'special_regime', type: 'integer', required: true, description: <>De <C>0</C> a <C>6</C>.</> },
+                            {
+                                name: 'default_service',
+                                type: 'object',
+                                description: (
+                                    <>
+                                        Serviço padrão, usado quando a nota não traz código ou descrição: <C>national_tax_code</C>,{' '}
+                                        <C>municipal_tax_code</C>, <C>nbs_code</C> e <C>description</C>. Com ele, o sistema integrado manda só tomador e valor.
+                                    </>
+                                ),
+                            },
+                            { name: 'default_approximate_taxes', type: 'object', description: 'Percentuais aproximados (federal, state, municipal) quando a nota não informa.' },
+                            { name: 'email_taker', type: 'boolean', description: 'Enviar a nota por e-mail ao tomador. Padrão: true.' },
+                            { name: 'danfse_stub', type: 'boolean', description: 'Imprimir o canhoto no DANFSe (data, assinatura de quem recebeu, número e chave). Padrão: false.' },
+                            {
+                                name: 'ibs_cbs_cst, ibs_cbs_class_code, ibs_cbs_operation_code',
+                                type: 'string',
+                                description: (
+                                    <>
+                                        Classificação padrão do IBS/CBS, os três juntos. Obrigatória com rejeição a partir de 01/01/2027 para
+                                        optantes do Simples; o regime regular já deve informar desde 01/10/2026. Defina com o contador.
+                                    </>
+                                ),
+                            },
                             { name: 'phone, email', type: 'string', description: 'Contato fiscal da empresa.' },
                             { name: 'environment', type: 'string', required: true, description: <><C>restricted</C> ou <C>production</C>.</> },
                             { name: 'dps_series', type: 'string', required: true, description: 'Série da DPS, de 1 a 5 dígitos.' },
@@ -1001,7 +1102,17 @@ export default function ApiDocs({ baseUrl, scopes, events, rateLimitPerMinute }:
                         params={[
                             { name: 'external_id', type: 'string', description: 'Identificador do pedido no seu sistema. Use sempre: é a proteção contra nota em duplicidade quando a sua chamada é repetida.' },
                             { name: 'competence_date', type: 'string', description: <>Data de competência, <C>AAAA-MM-DD</C>, até hoje. Padrão: hoje.</> },
-                            { name: 'taker.document', type: 'string', required: true, description: 'CPF ou CNPJ do tomador, com ou sem máscara.' },
+                            { name: 'taker.document', type: 'string', required: true, description: 'CPF ou CNPJ do tomador, com ou sem máscara. Para estrangeiro, use taker.nif.' },
+                            {
+                                name: 'taker.nif, taker.nif_absence_reason',
+                                type: 'string',
+                                description: (
+                                    <>
+                                        Tomador estrangeiro, no lugar de <C>document</C>: o NIF do país de origem (até 40 caracteres) ou, sem NIF,
+                                        o motivo <C>1</C> dispensado ou <C>2</C> não exigido. Só um dos três.
+                                    </>
+                                ),
+                            },
                             { name: 'taker.name', type: 'string', required: true, description: 'Nome ou razão social, até 300 caracteres.' },
                             { name: 'taker.email, taker.phone', type: 'string', description: 'Contato do tomador.' },
                             { name: 'taker.municipal_registration', type: 'string', description: 'Inscrição municipal do tomador.' },
@@ -1011,28 +1122,184 @@ export default function ApiDocs({ baseUrl, scopes, events, rateLimitPerMinute }:
                                 description: (
                                     <>
                                         <C>postal_code</C>, <C>street</C>, <C>number</C>, <C>complement</C>, <C>district</C> e <C>city_code</C>{' '}
-                                        (IBGE). Opcional, mas se vier precisa estar completo.
+                                        (IBGE, conferido na tabela do IBGE). No exterior, mande <C>country</C> (ISO, ex.: <C>US</C>), <C>city</C> e{' '}
+                                        <C>state</C> no lugar de <C>city_code</C>; <C>postal_code</C> aceita até 11 caracteres. Opcional, mas se vier
+                                        precisa estar completo.
                                     </>
                                 ),
                             },
-                            { name: 'service.national_tax_code', type: 'string', required: true, description: <>Código de tributação nacional, 6 dígitos (ex.: <C>01.07.01</C>).</> },
+                            {
+                                name: 'intermediary',
+                                type: 'object',
+                                description: 'Intermediário do serviço, quando houver. Mesmos campos de taker (inclusive estrangeiro).',
+                            },
+                            {
+                                name: 'notify_taker',
+                                type: 'boolean',
+                                description: 'Envia DANFSe e XML ao e-mail do tomador quando a nota sai, e o aviso se ela for cancelada. Padrão: o que o emitente configurou.',
+                            },
+                            {
+                                name: 'service.national_tax_code',
+                                type: 'string',
+                                description: (
+                                    <>
+                                        Código de tributação nacional, 6 dígitos (ex.: <C>01.07.01</C>). Sem ele, vale o serviço padrão do emitente (código
+                                        nacional, municipal e NBS juntos); sem padrão, 422.
+                                    </>
+                                ),
+                            },
                             { name: 'service.municipal_tax_code', type: 'string', description: 'Código de tributação municipal, 3 dígitos, quando o município usa.' },
                             { name: 'service.nbs_code', type: 'string', description: 'Código NBS, 9 dígitos.' },
-                            { name: 'service.description', type: 'string', required: true, description: 'Discriminação do serviço, até 2.000 caracteres. Quebras de linha viram espaço.' },
+                            { name: 'service.description', type: 'string', description: 'Discriminação do serviço, até 2.000 caracteres. Quebras de linha viram espaço. Sem ela, vale a descrição padrão do emitente.' },
+                            {
+                                name: 'service.additional_info',
+                                type: 'object',
+                                description: (
+                                    <>
+                                        Informações complementares impressas no DANFSe: <C>notes</C> (até 2.000, ex.: nome do aluno), <C>reference</C>{' '}
+                                        (documento de referência), <C>order</C> e <C>order_items</C> (pedido e itens), <C>technical_document</C> (ART/RRT/TRT).
+                                    </>
+                                ),
+                            },
+                            {
+                                name: 'service.construction',
+                                type: 'object',
+                                description: (
+                                    <>
+                                        Obra de construção civil: <C>work_code</C> (CNO/CEI), <C>cib</C> ou <C>address</C> (CEP, logradouro, número,
+                                        bairro; no exterior <C>country</C>, <C>city</C>, <C>state</C>), um só; <C>registration</C> é a inscrição imobiliária.
+                                    </>
+                                ),
+                            },
+                            {
+                                name: 'service.event',
+                                type: 'object',
+                                description: (
+                                    <>
+                                        Serviço ligado a evento: <C>name</C>, <C>starts_on</C>, <C>ends_on</C> e <C>event_id</C> (código na prefeitura) ou{' '}
+                                        <C>address</C>.
+                                    </>
+                                ),
+                            },
                             { name: 'service.city_code', type: 'string', description: 'Código IBGE do local da prestação. Padrão: município do emitente.' },
+                            {
+                                name: 'service.result_country',
+                                type: 'string',
+                                description: <>Obrigatório na exportação (<C>iss_taxation</C> 3): país ISO onde o resultado do serviço se verificou.</>,
+                            },
+                            {
+                                name: 'service.foreign_trade',
+                                type: 'object',
+                                description: (
+                                    <>
+                                        Obrigatório na exportação. <C>provision_mode</C> (<C>1</C> transfronteiriço, <C>2</C> consumo no Brasil,{' '}
+                                        <C>3</C> presença comercial no exterior, <C>4</C> movimento temporário de pessoas), <C>currency</C> (código
+                                        BACEN, ex.: <C>220</C> dólar, <C>978</C> euro) e <C>foreign_amount</C>. Opcionais: <C>relationship</C>,{' '}
+                                        <C>provider_support</C>, <C>taker_support</C>, <C>temporary_goods</C> e <C>send_to_mdic</C>.
+                                    </>
+                                ),
+                            },
                             { name: 'values.amount', type: 'string | number', required: true, description: 'Valor do serviço em reais.' },
+                            { name: 'values.intermediary_received', type: 'string | number', description: 'Valor que o intermediário recebeu do tomador (vReceb). Exige intermediary.' },
+                            {
+                                name: 'values.federal_taxes',
+                                type: 'object',
+                                description: (
+                                    <>
+                                        Tributos federais. <C>irrf</C>, <C>csll</C> e <C>inss</C> retidos: cada um <C>{'{ rate }'}</C> ou{' '}
+                                        <C>{'{ amount }'}</C>; com a alíquota, o valor é calculado sobre o valor do serviço. <C>pis_cofins</C>: <C>cst</C>{' '}
+                                        (obrigatório), <C>pis_rate</C>, <C>cofins_rate</C>, <C>base</C> (padrão: valor do serviço), <C>pis_amount</C>,{' '}
+                                        <C>cofins_amount</C> e <C>withholding</C> (tpRetPisCofins, <C>0</C> a <C>9</C>).
+                                    </>
+                                ),
+                            },
+                            {
+                                name: 'values.municipal_benefit',
+                                type: 'object',
+                                description: (
+                                    <>
+                                        Benefício municipal: <C>number</C> (14 dígitos, dado pela prefeitura) e, se houver, <C>reduction_amount</C> ou{' '}
+                                        <C>reduction_percent</C>.
+                                    </>
+                                ),
+                            },
+                            {
+                                name: 'values.iss_suspension',
+                                type: 'object',
+                                description: (
+                                    <>
+                                        ISS com exigibilidade suspensa: <C>type</C> (<C>1</C> decisão judicial, <C>2</C> processo administrativo) e{' '}
+                                        <C>process_number</C>.
+                                    </>
+                                ),
+                            },
                             {
                                 name: 'values.iss_rate',
                                 type: 'number',
                                 description: 'Alíquota do ISS em %. Em município conveniado, informe só quando a regra exigir (ex.: Simples com retenção); fora disso a Sefin usa a parametrizada e rejeita alíquota informada.',
                             },
-                            { name: 'values.iss_withheld', type: 'boolean', description: 'ISS retido pelo tomador. Padrão: false.' },
+                            { name: 'values.iss_withheld', type: 'boolean', description: 'ISS retido na fonte. Padrão: false.' },
+                            {
+                                name: 'values.iss_withholder',
+                                type: 'string',
+                                description: (
+                                    <>
+                                        Quem retém: <C>taker</C> (padrão) ou <C>intermediary</C>, que exige o grupo <C>intermediary</C>.
+                                    </>
+                                ),
+                            },
+                            {
+                                name: 'values.discounts',
+                                type: 'object',
+                                description: (
+                                    <>
+                                        Descontos em reais: <C>unconditional</C> (dado na nota, reduz a base do ISS) e <C>conditional</C>{' '}
+                                        (depende de evento futuro). Menores que o valor do serviço.
+                                    </>
+                                ),
+                            },
+                            {
+                                name: 'values.deduction',
+                                type: 'object',
+                                description: (
+                                    <>
+                                        Dedução da base de cálculo, quando a legislação municipal permite. Uma forma só: <C>percent</C>,{' '}
+                                        <C>amount</C> ou <C>documents</C>, a lista (até 1.000) dos documentos que comprovam a dedução. Veja os
+                                        campos de cada documento abaixo.
+                                    </>
+                                ),
+                            },
                             {
                                 name: 'values.iss_taxation',
                                 type: 'integer',
                                 description: (
                                     <>
                                         <C>1</C> tributável (padrão), <C>2</C> imunidade, <C>3</C> exportação, <C>4</C> não incidência.
+                                    </>
+                                ),
+                            },
+                            {
+                                name: 'values.ibs_cbs',
+                                type: 'object',
+                                description: (
+                                    <>
+                                        Sobrescreve nesta nota a classificação do emitente: <C>cst</C>, <C>class_code</C> e <C>operation_code</C>{' '}
+                                        juntos, e <C>final_consumer</C> (uso ou consumo pessoal). A DPS só declara; a Sefin calcula base e valores
+                                        de IBS e CBS, que voltam no XML e no DANFSe. Opcionais: <C>operation_type</C> e <C>government_entity</C>{' '}
+                                        (compras governamentais), <C>referenced_invoices</C> (chaves), <C>recipient</C> (destinatário diferente do
+                                        tomador, campos de pessoa), <C>property</C> (imóvel: <C>cib</C> ou <C>address</C>) e <C>reimbursements</C>{' '}
+                                        (reembolsos e repasses: <C>kind</C> <C>dfe</C>/<C>fiscal_document</C>/<C>other_document</C>, <C>type</C>,{' '}
+                                        <C>issued_on</C>, <C>competence_on</C>, <C>amount</C>, fornecedor).
+                                    </>
+                                ),
+                            },
+                            {
+                                name: 'values.immunity_type',
+                                type: 'integer',
+                                description: (
+                                    <>
+                                        Obrigatório na imunidade: <C>0</C> não informado, <C>1</C> a <C>5</C> conforme as alíneas a a e do art.
+                                        150, VI, da Constituição.
                                     </>
                                 ),
                             },
@@ -1045,6 +1312,45 @@ export default function ApiDocs({ baseUrl, scopes, events, rateLimitPerMinute }:
                                     </>
                                 ),
                             },
+                        ]}
+                    />
+                    <ParamTable
+                        title="Cada item de values.deduction.documents"
+                        params={[
+                            {
+                                name: 'kind',
+                                type: 'string',
+                                required: true,
+                                description: (
+                                    <>
+                                        <C>nfse</C> e <C>nfe</C> (pedem <C>access_key</C>, 50 e 44 dígitos), <C>municipal_nfse</C> (NFS-e do padrão
+                                        anterior: <C>city_code</C>, <C>number</C> e <C>verification_code</C>), <C>paper_invoice</C> (NF/NFS em papel:{' '}
+                                        <C>number</C>, <C>model</C> e <C>series</C>), <C>fiscal_document</C> e <C>other_document</C> (só{' '}
+                                        <C>number</C>, texto livre).
+                                    </>
+                                ),
+                            },
+                            {
+                                name: 'reason',
+                                type: 'string',
+                                required: true,
+                                description: (
+                                    <>
+                                        <C>1</C> alimentação e bebidas, <C>2</C> materiais, <C>3</C> produção externa, <C>4</C> reembolso de despesas,{' '}
+                                        <C>5</C> repasse consorciado, <C>6</C> repasse plano de saúde, <C>7</C> serviços, <C>8</C> subempreitada,{' '}
+                                        <C>9</C> profissional parceiro, <C>99</C> outras (com <C>reason_description</C>, até 150 caracteres).
+                                    </>
+                                ),
+                            },
+                            { name: 'issued_on', type: 'string', required: true, description: <>Data de emissão do documento, <C>AAAA-MM-DD</C>.</> },
+                            { name: 'deductible_amount', type: 'string | number', required: true, description: 'Total do documento que pode ser deduzido.' },
+                            {
+                                name: 'amount',
+                                type: 'string | number',
+                                required: true,
+                                description: 'Quanto dele é deduzido nesta nota; até deductible_amount. A soma dos documentos fica abaixo do valor do serviço.',
+                            },
+                            { name: 'supplier', type: 'object', description: 'Fornecedor do documento, com os mesmos campos de taker. Opcional.' },
                         ]}
                     />
                     <Callout tone="warning">
@@ -1082,7 +1388,7 @@ export default function ApiDocs({ baseUrl, scopes, events, rateLimitPerMinute }:
                     <ParamTable
                         title="Query"
                         params={[
-                            { name: 'status', type: 'string', description: <><C>pending</C>, <C>issued</C>, <C>rejected</C> ou <C>cancelled</C>.</> },
+                            { name: 'status', type: 'string', description: <><C>pending</C>, <C>issued</C>, <C>rejected</C>, <C>cancelled</C> ou <C>replaced</C>.</> },
                             { name: 'external_id', type: 'string', description: 'Só as notas deste pedido.' },
                             { name: 'search', type: 'string', description: 'Nome ou CPF/CNPJ do tomador, número ou chave da nota.' },
                             { name: 'per_page', type: 'integer', description: 'De 1 a 100. Padrão: 20.' },
@@ -1176,6 +1482,74 @@ export default function ApiDocs({ baseUrl, scopes, events, rateLimitPerMinute }:
                 </Endpoint>
 
                 <Endpoint
+                    id="substituir-nota"
+                    title="Substituir nota"
+                    method="POST"
+                    path="/invoices/{id}/replace"
+                    scope="invoices:write"
+                    code={
+                        <>
+                            {S({
+                                method: 'POST',
+                                path: `/invoices/${INVOICE_ID}/replace`,
+                                json: { ...INVOICE_INPUT, values: { amount: '1450.00', iss_withheld: false }, substitution: { reason_code: '99', reason: 'Valor cobrado diferente do contratado' } },
+                            })}
+                            <CodeBlock
+                                title="Resposta 201"
+                                code={json({
+                                    data: {
+                                        ...INVOICE,
+                                        id: '01k7x9c4e6g8j0k2m4p6r8t0v2',
+                                        dps: { ...INVOICE.dps, id: 'DPS431340921234567800019500001000000000000002', number: 2 },
+                                        access_key: '43134092212345678000195000000000000226104829173651',
+                                        nfse_number: '2',
+                                        values: { ...INVOICE.values, amount: '1450.00' },
+                                        substitution: {
+                                            replaces_invoice_id: INVOICE_ID,
+                                            replaces_access_key: INVOICE.access_key,
+                                            reason_code: '99',
+                                            reason: 'Valor cobrado diferente do contratado',
+                                        },
+                                    },
+                                })}
+                            />
+                        </>
+                    }
+                >
+                    <Prose>
+                        <p>
+                            Emite uma nota nova no lugar de uma <C>issued</C>, com os dados corrigidos. A DPS leva a chave da original e, quando a
+                            Sefin gera a substituta, cancela a original por substituição. A original passa a <C>replaced</C> e ganha o grupo{' '}
+                            <C>replacement</C> apontando para a nova.
+                        </p>
+                        <p>
+                            O corpo é o mesmo da <a href="#emitir-nota">emissão</a>, completo, mais o grupo <C>substitution</C>. Os códigos de
+                            resposta também: <C>201</C> emitida, <C>422</C> com <C>data</C> rejeitada (a original continua emitida),{' '}
+                            <C>202</C> pendente. Só notas <C>issued</C> podem ser substituídas, e só uma substituição pendente por vez; fora
+                            disso a resposta é 422 com <C>errors.substitution</C>.
+                        </p>
+                    </Prose>
+                    <ParamTable
+                        title="Corpo, além dos campos da emissão"
+                        params={[
+                            {
+                                name: 'substitution.reason_code',
+                                type: 'string',
+                                required: true,
+                                description: (
+                                    <>
+                                        <C>01</C> desenquadramento do Simples, <C>02</C> enquadramento no Simples, <C>03</C> inclusão retroativa de
+                                        imunidade/isenção, <C>04</C> exclusão retroativa, <C>05</C> rejeição pelo tomador ou intermediário,{' '}
+                                        <C>99</C> outros.
+                                    </>
+                                ),
+                            },
+                            { name: 'substitution.reason', type: 'string', description: <>Descrição, de 15 a 255 caracteres. Obrigatória com <C>99</C>.</> },
+                        ]}
+                    />
+                </Endpoint>
+
+                <Endpoint
                     id="baixar-xml"
                     title="Baixar XML"
                     method="GET"
@@ -1205,10 +1579,281 @@ export default function ApiDocs({ baseUrl, scopes, events, rateLimitPerMinute }:
                             code para a consulta pública no portal nacional e os dados lidos do XML da nota.
                         </p>
                         <p>
-                            O PDF é gerado na hora a partir do XML. Notas canceladas saem com a marca d&apos;água <C>CANCELADA</C>, e notas de
+                            O PDF é gerado na hora a partir do XML. Notas canceladas saem com a marca d&apos;água <C>CANCELADA</C>, substituídas
+                            com <C>SUBSTITUÍDA</C>, e notas de
                             produção restrita com o aviso <C>NFS-e SEM VALIDADE JURÍDICA</C>. Responde 404 enquanto a nota não foi gerada.
                         </p>
                     </Prose>
+                </Endpoint>
+
+                <Endpoint
+                    id="analise-fiscal"
+                    title="Cancelamento por análise fiscal"
+                    method="POST"
+                    path="/invoices/{id}/cancellation-review"
+                    scope="invoices:write"
+                    code={S({ method: 'POST', path: `/invoices/${INVOICE_ID}/cancellation-review`, json: { reason_code: 2, reason: 'Serviço não foi prestado ao cliente' } })}
+                >
+                    <Prose>
+                        <p>
+                            Quando o prazo do cancelamento comum já passou e a Sefin recusa o <a href="#cancelar-nota">cancelamento</a>, o pedido vai
+                            para a prefeitura decidir (evento 101103). Mesmos campos do cancelamento. A nota segue <C>issued</C> com{' '}
+                            <C>cancellation_review.status</C> = <C>requested</C>; a decisão chega pelo ADN e muda para <C>approved</C> (a nota fica{' '}
+                            <C>cancelled</C>) ou <C>denied</C> (webhook <C>invoice.cancellation_denied</C>).
+                        </p>
+                    </Prose>
+                </Endpoint>
+
+                <Endpoint
+                    id="eventos-nota"
+                    title="Eventos da nota"
+                    method="GET"
+                    path="/invoices/{id}/events"
+                    scope="invoices:read"
+                    code={
+                        <>
+                            {S({ method: 'GET', path: `/invoices/${INVOICE_ID}/events` })}
+                            <CodeBlock
+                                title="Resposta 200"
+                                code={json({
+                                    data: [
+                                        {
+                                            nsu: 2,
+                                            code: '203206',
+                                            label: 'Rejeição do tomador',
+                                            reason_code: '5',
+                                            reason: 'Valor do serviço diferente do contratado',
+                                            author_document: '11222333000181',
+                                            processed_at: '2026-10-19T10:00:00-03:00',
+                                        },
+                                    ],
+                                })}
+                            />
+                        </>
+                    }
+                >
+                    <Prose>
+                        <p>
+                            Todos os eventos registrados na nota, inclusive por terceiros: cancelamentos (comum, por substituição, por ofício, por
+                            análise fiscal), confirmação ou rejeição do tomador e do intermediário, bloqueio e desbloqueio. O Moduhub busca no ADN a
+                            cada hora e aplica o efeito na nota (por exemplo, nota cancelada pela prefeitura vira <C>cancelled</C> e dispara{' '}
+                            <C>invoice.cancelled</C>).
+                        </p>
+                    </Prose>
+                </Endpoint>
+
+                <Endpoint
+                    id="enviar-email"
+                    title="Enviar por e-mail"
+                    method="POST"
+                    path="/invoices/{id}/email"
+                    scope="invoices:write"
+                    code={
+                        <>
+                            {S({ method: 'POST', path: `/invoices/${INVOICE_ID}/email`, json: { emails: ['financeiro@cliente.com.br'] } })}
+                            <CodeBlock title="Resposta 202" code={json({ data: { queued_to: ['financeiro@cliente.com.br'] } })} />
+                        </>
+                    }
+                >
+                    <Prose>
+                        <p>
+                            Reenvia a nota pela fila de e-mail, com DANFSe e XML anexados (ou o aviso, se ela foi cancelada). <C>emails</C> é
+                            opcional: sem ele, vai para o e-mail do tomador. Até 10 endereços. O envio automático depois da emissão segue{' '}
+                            <C>notify_taker</C>.
+                        </p>
+                    </Prose>
+                </Endpoint>
+
+                <Endpoint
+                    id="consumo"
+                    title="Consumo do plano"
+                    method="GET"
+                    path="/invoices/usage"
+                    scope="invoices:read"
+                    code={
+                        <>
+                            {S({ method: 'GET', path: '/invoices/usage' })}
+                            <CodeBlock
+                                title="Resposta 200"
+                                code={json({
+                                    data: {
+                                        used: 87,
+                                        included: 100,
+                                        remaining: 13,
+                                        overage_allowed: true,
+                                        overage_cents: 100,
+                                        period_start: '2026-10-01T00:00:00-03:00',
+                                        period_end: '2026-10-31T23:59:59-03:00',
+                                        plan: 'Starter',
+                                    },
+                                })}
+                            />
+                        </>
+                    }
+                >
+                    <Prose>
+                        <p>
+                            Notas do período da assinatura contra a cota do plano. Contam todas as DPS que geraram ou podem gerar NFS-e; rejeitadas
+                            não contam. Com <C>overage_allowed</C>, as notas além da cota saem com <C>is_overage</C> e entram no excedente; sem ele (ou
+                            no teste grátis), a emissão responde 422 em <C>errors.quota</C> quando a cota acaba.
+                        </p>
+                    </Prose>
+                </Endpoint>
+
+                <Endpoint
+                    id="notas-recebidas"
+                    title="Notas recebidas"
+                    method="GET"
+                    path="/invoices/received"
+                    scope="invoices:read"
+                    code={
+                        <>
+                            {S({ method: 'GET', path: '/invoices/received?role=taker&status=issued' })}
+                            <CodeBlock
+                                title="Resposta 200 (item)"
+                                code={json({
+                                    id: '01k7xa1b2c3d4e5f6g7h8j9k0m',
+                                    environment: 'production',
+                                    access_key: '35503082211222333000181000000000000726108607888209',
+                                    role: 'taker',
+                                    status: 'issued',
+                                    nfse_number: '7',
+                                    provider: { document: '11222333000181', name: 'Fornecedor de Serviços Ltda' },
+                                    taker: { document: '12345678000195', name: 'Agência Vela Comunicação Ltda' },
+                                    competence_date: '2026-10-15',
+                                    issued_at: '2026-10-15T14:02:11-03:00',
+                                    amount: '1200.00',
+                                    iss_amount: '24.00',
+                                    description: 'Consultoria em outubro/2026',
+                                    manifestation: null,
+                                })}
+                            />
+                        </>
+                    }
+                >
+                    <Prose>
+                        <p>
+                            NFS-e de terceiros em que a empresa aparece: como tomador, intermediário ou como prestador de uma nota que o tomador
+                            emitiu. Chegam pela distribuição do ADN, consultada a cada hora com o certificado do emitente; cada nota nova dispara{' '}
+                            <C>invoice.received</C>.
+                        </p>
+                        <p>
+                            Também: <C>GET /invoices/received/{'{id}'}</C> (com os eventos), <C>/xml</C>, <C>/pdf</C> (DANFSe) e{' '}
+                            <C>POST /invoices/received/sync</C> para buscar no ADN na hora.
+                        </p>
+                    </Prose>
+                    <ParamTable
+                        title="Query"
+                        params={[
+                            { name: 'role', type: 'string', description: <><C>taker</C>, <C>intermediary</C> ou <C>provider</C>.</> },
+                            { name: 'status', type: 'string', description: <><C>issued</C>, <C>cancelled</C> ou <C>replaced</C>.</> },
+                            { name: 'search', type: 'string', description: 'Nome ou CNPJ do prestador, número ou chave.' },
+                            { name: 'per_page', type: 'integer', description: 'De 1 a 100. Padrão: 20.' },
+                        ]}
+                    />
+                </Endpoint>
+
+                <Endpoint
+                    id="manifestar"
+                    title="Manifestar nota recebida"
+                    method="POST"
+                    path="/invoices/received/{id}/manifest"
+                    scope="invoices:write"
+                    code={S({ method: 'POST', path: '/invoices/received/01k7xa1b2c3d4e5f6g7h8j9k0m/manifest', json: { decision: 'reject', reason_code: '5', reason: 'Valor diferente do contratado' } })}
+                >
+                    <Prose>
+                        <p>
+                            Confirma ou rejeita a nota na Sefin Nacional, assinado com o certificado do emitente. O evento depende do papel da empresa
+                            (tomador 203202/203206, intermediário 204203/204207, prestador 202201/202205). Uma manifestação por nota; responde 422
+                            em <C>errors.manifestation</C> se a nota já foi manifestada ou não está válida.
+                        </p>
+                    </Prose>
+                    <ParamTable
+                        title="Corpo"
+                        params={[
+                            { name: 'decision', type: 'string', required: true, description: <><C>confirm</C> ou <C>reject</C>.</> },
+                            {
+                                name: 'reason_code',
+                                type: 'string',
+                                description: (
+                                    <>
+                                        Obrigatório na rejeição: <C>1</C> duplicidade, <C>2</C> já emitida pelo tomador, <C>3</C> fato gerador não ocorreu,{' '}
+                                        <C>4</C> erro de responsabilidade tributária, <C>5</C> erro de valor, serviço ou data, <C>9</C> outros.
+                                    </>
+                                ),
+                            },
+                            { name: 'reason', type: 'string', description: <>Justificativa, de 15 a 255 caracteres. Obrigatória com <C>9</C>.</> },
+                        ]}
+                    />
+                </Endpoint>
+
+                <Endpoint
+                    id="listar-municipios"
+                    title="Municípios conveniados"
+                    method="GET"
+                    path="/invoices/municipalities"
+                    scope="invoices:read"
+                    code={
+                        <>
+                            {S({ method: 'GET', path: '/invoices/municipalities?situation=national_emitter&uf=SP' })}
+                            {S({ method: 'GET', path: '/invoices/municipalities/3550308' })}
+                            <CodeBlock
+                                title="Resposta 200 (um município)"
+                                code={json({
+                                    data: {
+                                        city_code: '3550308',
+                                        name: 'São Paulo',
+                                        uf: 'SP',
+                                        environment: 'production',
+                                        situation: 'national_emitter',
+                                        issues_through_sefin: true,
+                                        agreement: {
+                                            status: 'active',
+                                            national_environment: true,
+                                            national_emitter: true,
+                                            rfb_standard_issuance: false,
+                                            national_assessment: false,
+                                            credit_use: true,
+                                        },
+                                        message: 'Parâmetros do convênio recuperados com sucesso.',
+                                        checked_at: '2026-10-19T03:04:11-03:00',
+                                    },
+                                })}
+                            />
+                        </>
+                    }
+                >
+                    <Prose>
+                        <p>
+                            Situação de cada município no Sistema Nacional NFS-e, lida do convênio publicado no ADN. O Moduhub consulta os 5.571
+                            municípios toda semana; <C>checked_at</C> diz quando cada um foi lido e <C>meta.last_checked_at</C>, na lista, a
+                            consulta mais recente.
+                        </p>
+                        <p>
+                            Use <C>issues_through_sefin</C> para saber se dá para emitir pelo Moduhub: é <C>true</C> quando o convênio está ativo
+                            e a prefeitura libera os emissores nacionais. Com <C>adn_only</C>, a prefeitura mantém sistema próprio e a Sefin
+                            Nacional tende a recusar a DPS. A consulta por código responde 404 para município sem registro no ambiente.
+                        </p>
+                    </Prose>
+                    <ParamTable
+                        title="Query"
+                        params={[
+                            { name: 'environment', type: 'string', description: <><C>production</C> (padrão) ou <C>restricted</C>. Os convênios diferem entre os dois.</> },
+                            {
+                                name: 'situation',
+                                type: 'string',
+                                description: (
+                                    <>
+                                        <C>national_emitter</C> emite pela Sefin Nacional, <C>adn_only</C> convênio ativo com emissor próprio,{' '}
+                                        <C>inactive</C> convênio ainda não ativo, <C>not_found</C> sem convênio.
+                                    </>
+                                ),
+                            },
+                            { name: 'uf', type: 'string', description: 'Sigla do estado.' },
+                            { name: 'search', type: 'string', description: 'Parte do nome (sem acento) ou o código IBGE.' },
+                            { name: 'per_page', type: 'integer', description: 'De 1 a 200. Padrão: 50.' },
+                        ]}
+                    />
                 </Endpoint>
 
                 <Section id="webhooks" title="Webhooks">
@@ -1262,13 +1907,43 @@ export default function ApiDocs({ baseUrl, scopes, events, rateLimitPerMinute }:
                         ))}
                     </ul>
                     <ParamTable
-                        title="Campos de data, além de document_id e external_id"
+                        title="Eventos de documento: campos de data, além de document_id e external_id"
                         params={[
                             { name: 'document.sent', type: 'evento', description: <><C>sent_at</C>, <C>signers_count</C></> },
                             { name: 'document.viewed', type: 'evento', description: <><C>signer_id</C>, <C>signer_email</C></> },
                             { name: 'document.signed', type: 'evento', description: <><C>signer_id</C>, <C>signer_email</C>, <C>signed_at</C></> },
                             { name: 'document.completed', type: 'evento', description: <><C>completed_at</C>, <C>final_sha256</C> e <C>sealed_with_icp</C> (se o PDF final recebeu o selo ICP-Brasil da plataforma)</> },
                             { name: 'document.rejected', type: 'evento', description: <><C>signer_id</C>, <C>signer_email</C>, <C>reason</C></> },
+                        ]}
+                    />
+                    <ParamTable
+                        title="Eventos de nota: todos trazem invoice_id, external_id, status, environment, dps_id, access_key, nfse_number e amount"
+                        params={[
+                            { name: 'invoice.issued', type: 'evento', description: <><C>issued_at</C> e <C>replaces_invoice_id</C> (quando é substituta)</> },
+                            { name: 'invoice.rejected', type: 'evento', description: <><C>errors</C>, a lista devolvida pela Sefin</> },
+                            { name: 'invoice.cancelled', type: 'evento', description: <><C>cancel_reason_code</C>, <C>cancel_reason</C>, <C>cancelled_at</C></> },
+                            { name: 'invoice.taker_rejected', type: 'evento', description: <><C>rejected_by</C>, <C>reason_code</C>, <C>reason</C>, <C>rejected_at</C></> },
+                            { name: 'invoice.cancellation_denied', type: 'evento', description: <><C>decided_at</C> (a análise fiscal negou o cancelamento)</> },
+                            {
+                                name: 'invoice.received',
+                                type: 'evento',
+                                description: (
+                                    <>
+                                        <C>received_invoice_id</C>, <C>role</C>, <C>access_key</C>, <C>nfse_number</C>, <C>provider_document</C>,{' '}
+                                        <C>provider_name</C>, <C>amount</C>
+                                    </>
+                                ),
+                            },
+                            {
+                                name: 'invoice.replaced',
+                                type: 'evento',
+                                description: (
+                                    <>
+                                        Na original: <C>replaced_at</C>, <C>replaced_by_invoice_id</C>, <C>replaced_by_access_key</C>,{' '}
+                                        <C>substitution_reason_code</C>, <C>substitution_reason</C>
+                                    </>
+                                ),
+                            },
                         ]}
                     />
                 </Section>

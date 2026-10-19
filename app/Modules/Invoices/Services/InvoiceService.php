@@ -27,6 +27,8 @@ use Illuminate\Validation\ValidationException;
 
 class InvoiceService implements InvoiceServiceContract
 {
+    private const IBS_CBS_EXTRAS = ['operation_type', 'government_entity', 'referenced_invoices', 'recipient', 'property', 'reimbursements'];
+
     public function __construct(
         protected InvoiceRepositoryContract $invoices,
         protected IssuerRepositoryContract $issuers,
@@ -38,6 +40,8 @@ class InvoiceService implements InvoiceServiceContract
         protected XmlSchemaValidator $schema,
         protected WebhookDispatcherContract $webhooks,
         protected ServiceCodeChecker $serviceCodes,
+        protected InvoiceDeliveryService $delivery,
+        protected InvoiceQuotaService $quota,
     ) {}
 
     public function issue(Tenant $tenant, ?User $creator, array $data): Invoice
@@ -48,13 +52,43 @@ class InvoiceService implements InvoiceServiceContract
             return $existing;
         }
 
+        return $this->createAndTransmit($tenant, $creator, $data);
+    }
+
+    public function replace(Invoice $original, Tenant $tenant, ?User $creator, array $data, string $reasonCode, ?string $reason): Invoice
+    {
+        if (! $original->isIssued()) {
+            throw ValidationException::withMessages([
+                'substitution' => 'Só notas emitidas podem ser substituídas.',
+            ]);
+        }
+
+        if ($this->invoices->findPendingReplacement($original) !== null) {
+            throw ValidationException::withMessages([
+                'substitution' => 'Já existe uma substituta desta nota aguardando a Sefin. Sincronize-a antes de tentar de novo.',
+            ]);
+        }
+
+        return $this->createAndTransmit($tenant, $creator, $data, [
+            'replaces_invoice_id' => $original->getKey(),
+            'substitution_reason_code' => $reasonCode,
+            'substitution_reason' => $reason,
+        ]);
+    }
+
+    /** @param  array<string, mixed>  $substitution  colunas do grupo subst quando a nota substitui outra */
+    protected function createAndTransmit(Tenant $tenant, ?User $creator, array $data, array $substitution = []): Invoice
+    {
         $issuer = $this->readyIssuer();
+        $data = $this->withIssuerDefaults($data, $issuer);
         $credentials = $this->credentials->load($issuer);
         // Antes de reservar o número: código sem parametrização no município seria rejeitado com E0312.
         $this->serviceCodes->assertIssuable($issuer, $data['service'], Carbon::parse($data['competence_date'] ?? now()->toDateString()));
 
-        $invoice = DB::transaction(function () use ($tenant, $creator, $data, $issuer, $credentials) {
+        $invoice = DB::transaction(function () use ($tenant, $creator, $data, $issuer, $credentials, $substitution) {
             $locked = $this->issuers->lockForNumbering($issuer);
+            // Depois do lock: emissões simultâneas do mesmo workspace contam uma de cada vez.
+            $overage = $this->quota->reserve($tenant);
             $number = $locked->next_dps_number;
             $locked->forceFill(['next_dps_number' => $number + 1])->save();
 
@@ -70,6 +104,9 @@ class InvoiceService implements InvoiceServiceContract
                 'dps_id' => DpsBuilder::dpsId($locked, $locked->dps_series, $number),
                 // Um minuto de folga: a Sefin rejeita dhEmi à frente do relógio dela.
                 'emitted_at' => now()->subMinute(),
+                'ibs_cbs' => $this->ibsCbs($data['values']['ibs_cbs'] ?? null, $locked),
+                'is_overage' => $overage,
+                ...$substitution,
             ]);
 
             $doc = $this->dps->build($invoice, $locked);
@@ -165,6 +202,7 @@ class InvoiceService implements InvoiceServiceContract
             'cancel_reason' => $reason,
             'cancelled_at' => $invoice->cancelled_at?->toIso8601String(),
         ]);
+        $this->delivery->afterCancelled($invoice);
 
         return $invoice;
     }
@@ -188,20 +226,45 @@ class InvoiceService implements InvoiceServiceContract
     {
         $nfse = NfseDocument::fromXml($nfseXml);
 
-        $invoice->forceFill([
-            'status' => Invoice::STATUS_ISSUED,
-            'access_key' => $accessKey ?? $nfse->accessKey,
-            'nfse_number' => $nfse->number,
-            'issued_at' => $nfse->processedAt ?? now(),
-            'nfse_xml' => $nfseXml,
-            'rejection' => null,
-            'last_error' => null,
-            'last_attempt_at' => now(),
-        ])->save();
+        $original = DB::transaction(function () use ($invoice, $nfse, $nfseXml, $accessKey) {
+            $invoice->forceFill([
+                'status' => Invoice::STATUS_ISSUED,
+                'access_key' => $accessKey ?? $nfse->accessKey,
+                'nfse_number' => $nfse->number,
+                'issued_at' => $nfse->processedAt ?? now(),
+                'nfse_xml' => $nfseXml,
+                'rejection' => null,
+                'last_error' => null,
+                'last_attempt_at' => now(),
+            ])->save();
+
+            // A Sefin cancela a original por substituição (e105102) ao gerar a substituta; aqui só espelhamos.
+            $original = $invoice->replaces;
+            if ($original !== null && $original->isIssued()) {
+                $original->forceFill(['status' => Invoice::STATUS_REPLACED, 'replaced_at' => now()])->save();
+
+                return $original;
+            }
+
+            return null;
+        });
 
         $this->fire($invoice, 'invoice.issued', [
             'issued_at' => $invoice->issued_at?->toIso8601String(),
+            'replaces_invoice_id' => $invoice->replaces_invoice_id,
         ]);
+        $this->delivery->afterIssued($invoice);
+
+        if ($original !== null) {
+            $this->fire($original, 'invoice.replaced', [
+                'replaced_at' => $original->replaced_at?->toIso8601String(),
+                'replaced_by_invoice_id' => $invoice->getKey(),
+                'replaced_by_access_key' => $invoice->access_key,
+                'substitution_reason_code' => $invoice->substitution_reason_code,
+                'substitution_reason' => $invoice->substitution_reason,
+            ]);
+            $this->delivery->afterCancelled($original);
+        }
 
         return $invoice;
     }
@@ -225,6 +288,44 @@ class InvoiceService implements InvoiceServiceContract
         $invoice->forceFill(['last_error' => $e->getMessage(), 'last_attempt_at' => now()])->save();
 
         return $invoice;
+    }
+
+    /**
+     * Completa a nota com o que o emitente configurou como padrão: o serviço que presta quase sempre,
+     * os tributos aproximados e o envio por e-mail. O que a nota informa sempre prevalece.
+     */
+    protected function withIssuerDefaults(array $data, Issuer $issuer): array
+    {
+        $service = (array) ($data['service'] ?? []);
+        $default = (array) ($issuer->default_service ?? []);
+
+        if (empty($service['national_tax_code'])) {
+            if (empty($default['national_tax_code'])) {
+                throw ValidationException::withMessages([
+                    'service.national_tax_code' => 'Informe o código de tributação nacional ou configure o serviço padrão do emitente.',
+                ]);
+            }
+
+            // Os códigos andam juntos: herdar só o nacional com o municipal de outro serviço daria E0312.
+            foreach (['national_tax_code', 'municipal_tax_code', 'nbs_code'] as $key) {
+                $service[$key] = $default[$key] ?? null;
+            }
+        }
+
+        if (empty($service['description'])) {
+            if (empty($default['description'])) {
+                throw ValidationException::withMessages([
+                    'service.description' => 'Informe a descrição do serviço ou configure uma descrição padrão no emitente.',
+                ]);
+            }
+            $service['description'] = $default['description'];
+        }
+
+        $data['service'] = $service;
+        $data['values']['approximate_taxes'] ??= $issuer->default_approximate_taxes;
+        $data['notify_taker'] ??= $issuer->email_taker;
+
+        return $data;
     }
 
     protected function readyIssuer(): Issuer
@@ -251,20 +352,113 @@ class InvoiceService implements InvoiceServiceContract
     {
         $taker = $data['taker'];
         $values = $data['values'];
+        $withheld = (bool) ($values['iss_withheld'] ?? false);
 
         return [
             'external_id' => $data['external_id'] ?? null,
             'competence_date' => $data['competence_date'] ?? now()->toDateString(),
-            'taker_document' => $taker['document'] ?? null,
+            // Estrangeiro não tem CPF/CNPJ: a busca por documento usa o NIF.
+            'taker_document' => $taker['document'] ?? $taker['nif'] ?? null,
             'taker_name' => $taker['name'],
             'taker' => $taker,
+            'intermediary' => $data['intermediary'] ?? null,
             'service' => $data['service'],
             'amount' => $values['amount'],
+            'intermediary_received' => $values['intermediary_received'] ?? null,
+            'unconditional_discount' => $values['discounts']['unconditional'] ?? null,
+            'conditional_discount' => $values['discounts']['conditional'] ?? null,
+            'deduction_amount' => $values['deduction']['amount'] ?? null,
+            'deduction_percent' => $values['deduction']['percent'] ?? null,
+            'deduction_documents' => $values['deduction']['documents'] ?? null,
             'iss_rate' => $values['iss_rate'] ?? null,
-            'iss_withheld' => (bool) ($values['iss_withheld'] ?? false),
+            'iss_withheld' => $withheld,
+            'iss_withholder' => $withheld ? ($values['iss_withholder'] ?? Invoice::WITHHOLDER_TAKER) : null,
             'iss_taxation' => (int) ($values['iss_taxation'] ?? Invoice::ISS_TAXABLE),
+            'immunity_type' => isset($values['immunity_type']) ? (int) $values['immunity_type'] : null,
+            'federal_taxes' => $this->federalTaxes($values['federal_taxes'] ?? null, (string) $values['amount']),
+            'municipal_benefit' => $values['municipal_benefit'] ?? null,
+            'iss_suspension' => $values['iss_suspension'] ?? null,
             'approximate_taxes' => $values['approximate_taxes'] ?? null,
+            'notify_taker' => (bool) ($data['notify_taker'] ?? false),
         ];
+    }
+
+    /**
+     * Resolve os valores dos tributos federais: quem integra pode mandar só as alíquotas, e os valores
+     * saem daqui (base do PIS/COFINS e das retenções = valor do serviço, salvo base informada).
+     */
+    protected function federalTaxes(?array $taxes, string $amount): ?array
+    {
+        if ($taxes === null) {
+            return null;
+        }
+
+        $of = fn (string|float|null $base, string|float|null $rate) => $rate === null ? null : number_format(round((float) $base * (float) $rate / 100, 2), 2, '.', '');
+        $resolved = [];
+
+        if (! empty($taxes['pis_cofins'])) {
+            $pc = $taxes['pis_cofins'];
+            $base = $pc['base'] ?? (($pc['pis_rate'] ?? null) !== null || ($pc['cofins_rate'] ?? null) !== null ? $amount : null);
+            $resolved['pis_cofins'] = [
+                'cst' => $pc['cst'],
+                'base' => $base,
+                'pis_rate' => $pc['pis_rate'] ?? null,
+                'cofins_rate' => $pc['cofins_rate'] ?? null,
+                'pis_amount' => $pc['pis_amount'] ?? $of($base, $pc['pis_rate'] ?? null),
+                'cofins_amount' => $pc['cofins_amount'] ?? $of($base, $pc['cofins_rate'] ?? null),
+                'withholding' => $pc['withholding'] ?? null,
+            ];
+        }
+
+        foreach (['irrf', 'csll', 'inss'] as $tax) {
+            if (! empty($taxes[$tax])) {
+                $resolved[$tax] = [
+                    'rate' => $taxes[$tax]['rate'] ?? null,
+                    'amount' => $taxes[$tax]['amount'] ?? $of($amount, $taxes[$tax]['rate'] ?? null),
+                ];
+            }
+        }
+
+        return $resolved === [] ? null : $resolved;
+    }
+
+    /**
+     * Códigos do IBS/CBS da nota: os informados nela ou os padrão do emitente. Sem nenhum dos dois, a DPS sai sem o grupo.
+     *
+     * @return array{cst: string, class_code: string, operation_code: string, final_consumer: bool|null}|null
+     */
+    protected function ibsCbs(?array $informed, Issuer $issuer): ?array
+    {
+        $codes = match (true) {
+            ! empty($informed['cst']) => [
+                'cst' => $informed['cst'],
+                'class_code' => $informed['class_code'],
+                'operation_code' => $informed['operation_code'],
+            ],
+            $issuer->hasIbsCbsDefaults() => [
+                'cst' => $issuer->ibs_cbs_cst,
+                'class_code' => $issuer->ibs_cbs_class_code,
+                'operation_code' => $issuer->ibs_cbs_operation_code,
+            ],
+            default => null,
+        };
+
+        // Destinatário, imóvel, reembolsos e compras governamentais só existem dentro do grupo IBSCBS.
+        $extras = array_filter(array_intersect_key((array) $informed, array_flip(self::IBS_CBS_EXTRAS)), fn ($v) => $v !== null);
+
+        if ($codes === null) {
+            if ($extras !== []) {
+                throw ValidationException::withMessages([
+                    'values.ibs_cbs.cst' => 'Os dados complementares do IBS/CBS exigem CST, cClassTrib e cIndOp, na nota ou no padrão do emitente.',
+                ]);
+            }
+
+            return null;
+        }
+
+        $finalConsumer = $informed['final_consumer'] ?? null;
+
+        return $codes + ['final_consumer' => $finalConsumer === null ? null : (bool) $finalConsumer] + $extras;
     }
 
     protected function signedElement(DOMDocument $doc, string $name): DOMElement

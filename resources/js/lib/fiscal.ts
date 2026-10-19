@@ -15,7 +15,10 @@ export function formatCpf(value: string): string {
 /** CPF ou CNPJ conforme o tamanho. */
 export function formatTaxDocument(value: string | null | undefined): string {
     if (!value) return '—';
-    return value.length === 11 ? formatCpf(value) : formatCnpj(value);
+    // NIF de estrangeiro também cai aqui (taker_document): sem máscara.
+    if (value.length === 11 && /^\d+$/.test(value)) return formatCpf(value);
+    if (value.length === 14) return formatCnpj(value);
+    return value;
 }
 
 const money = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });

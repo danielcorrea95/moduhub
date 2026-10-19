@@ -3,6 +3,7 @@
 namespace App\Modules\Invoices\Services\Danfse;
 
 use App\Modules\Invoices\Services\Nfse\DpsBuilder;
+use App\Modules\Invoices\Services\Nfse\Municipalities;
 use Carbon\CarbonImmutable;
 use DOMDocument;
 use DOMXPath;
@@ -17,14 +18,6 @@ final class DanfseData
     public const EMPTY = '-';
 
     public const QR_BASE_URL = 'https://www.nfse.gov.br/ConsultaPublica/?tpc=1&chave=';
-
-    private const UF_BY_IBGE = [
-        '11' => 'RO', '12' => 'AC', '13' => 'AM', '14' => 'RR', '15' => 'PA', '16' => 'AP', '17' => 'TO',
-        '21' => 'MA', '22' => 'PI', '23' => 'CE', '24' => 'RN', '25' => 'PB', '26' => 'PE', '27' => 'AL', '28' => 'SE', '29' => 'BA',
-        '31' => 'MG', '32' => 'ES', '33' => 'RJ', '35' => 'SP',
-        '41' => 'PR', '42' => 'SC', '43' => 'RS',
-        '50' => 'MS', '51' => 'MT', '52' => 'GO', '53' => 'DF',
-    ];
 
     private const EMITTER = ['1' => 'Prestador', '2' => 'Tomador', '3' => 'Intermediário'];
 
@@ -251,8 +244,8 @@ final class DanfseData
         $city = match (true) {
             $foreignCity !== null => $foreignCity,
             $cityCode !== null && isset($cityNames[$cityCode]) => $cityNames[$cityCode].' / '.$uf,
-            // O XML só traz o código IBGE; sem tabela de municípios, o nome fica em branco e a UF sai do código.
-            $cityCode !== null => self::EMPTY.' / '.($uf ?? self::EMPTY),
+            // Tomador e intermediário só trazem o código IBGE no XML: o nome vem da tabela do IBGE.
+            $cityCode !== null => (Municipalities::name($cityCode) ?? self::EMPTY).' / '.($uf ?? self::EMPTY),
             default => self::EMPTY,
         };
 
@@ -398,7 +391,7 @@ final class DanfseData
 
     private function uf(?string $ibgeCode): ?string
     {
-        return $ibgeCode === null ? null : (self::UF_BY_IBGE[substr($ibgeCode, 0, 2)] ?? null);
+        return Municipalities::uf($ibgeCode);
     }
 
     private function place(?string $name, ?string $code, ?string $country): string
@@ -407,7 +400,7 @@ final class DanfseData
             return self::EMPTY;
         }
 
-        return $this->limit(implode(' / ', array_filter([$name ?? $code, $this->uf($code), $country])), 42);
+        return $this->limit(implode(' / ', array_filter([$name ?? Municipalities::name($code) ?? $code, $this->uf($code), $country])), 42);
     }
 
     private function taxCode(?string $national, ?string $municipal): string

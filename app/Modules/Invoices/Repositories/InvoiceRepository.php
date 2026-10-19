@@ -56,4 +56,36 @@ class InvoiceRepository implements InvoiceRepositoryContract
             ->where('status', Invoice::STATUS_REJECTED)
             ->first();
     }
+
+    public function findPendingReplacement(Invoice $original): ?Invoice
+    {
+        return $original->replacements()->where('status', Invoice::STATUS_PENDING)->latest()->first();
+    }
+
+    public function findIssued(string $id): ?Invoice
+    {
+        return Invoice::query()
+            ->whereKey($id)
+            ->where('status', Invoice::STATUS_ISSUED)
+            ->first();
+    }
+
+    public function findByAccessKeyForTenant(string $tenantId, string $accessKey): ?Invoice
+    {
+        return Invoice::query()
+            ->withoutTenantScope()
+            ->where('tenant_id', $tenantId)
+            ->where('access_key', $accessKey)
+            ->first();
+    }
+
+    public function countBilledBetween(string $tenantId, \DateTimeInterface $start, \DateTimeInterface $end): int
+    {
+        return Invoice::query()
+            ->withoutTenantScope()
+            ->where('tenant_id', $tenantId)
+            ->where('status', '!=', Invoice::STATUS_REJECTED)
+            ->whereBetween('created_at', [$start, $end])
+            ->count();
+    }
 }

@@ -12,16 +12,22 @@ use TCPDF;
 class DanfseRenderer
 {
     private const LEFT = 0.30;
+
     private const TOP = 0.30;
+
     private const WIDTH = 20.40;
+
     private const BOTTOM = 29.40;
 
     /** Colunas da grade de 4 campos da NT. */
     private const COL = [0.30, 5.41, 10.51, 15.62];
+
     private const COL_W = 5.09;
+
     private const WIDE_W = 10.19;
 
     private const ROW = 0.645;
+
     /** A NT pede no mínimo 0,32 cm; um pouco mais evita que o texto em 7 pt encoste na linha seguinte. */
     private const NOTICE_ROW = 0.40;
 
@@ -29,13 +35,17 @@ class DanfseRenderer
     private const SHADE = [242, 242, 242];
 
     private const LABEL_FONT = 'helvetica';
+
     private const VALUE_FONT = 'helvetica';
 
     private TCPDF $pdf;
 
     private float $y;
 
-    public function render(DanfseData $d): string
+    /** Linha do canhoto (item 2.1.13, nota 11): 0,67 cm, ancorada no fim da página. */
+    private const STUB_HEIGHT = 0.67;
+
+    public function render(DanfseData $d, bool $stub = false): string
     {
         $this->pdf = new TCPDF('P', 'cm', 'A4', true, 'UTF-8');
         $this->pdf->SetCreator('Moduhub');
@@ -63,7 +73,10 @@ class DanfseRenderer
         $this->federalTax($d->federal);
         $this->ibscbs($d->ibscbs);
         $this->totals($d->totals);
-        $this->complementary($d->complementary);
+        $this->complementary($d->complementary, $stub ? self::BOTTOM - self::STUB_HEIGHT : self::BOTTOM);
+        if ($stub) {
+            $this->stub($d);
+        }
 
         $this->pdf->SetLineWidth(0.0353); // 1 ponto
         $this->pdf->Rect(self::LEFT, self::TOP, self::WIDTH, self::BOTTOM - self::TOP);
@@ -322,15 +335,30 @@ class DanfseRenderer
         $this->line($this->y);
     }
 
-    private function complementary(string $text): void
+    private function complementary(string $text, float $until): void
     {
         $this->blockTitle('INFORMAÇÕES COMPLEMENTARES', 0.39, fullWidth: true);
         $this->y += 0.41;
 
-        // Sem canhoto, o bloco ocupa o resto da página (item 2.3.3).
+        // Sem canhoto, o bloco ocupa o resto da página (item 2.3.3); com canhoto, para antes dele.
+        $height = $until - $this->y - 0.05;
         $this->pdf->SetFont(self::VALUE_FONT, '', 7);
         $this->pdf->SetXY(self::LEFT, $this->y);
-        $this->pdf->MultiCell(self::WIDTH, self::BOTTOM - $this->y - 0.05, $text, 0, 'L', false, 1, '', '', true, 0, false, true, self::BOTTOM - $this->y - 0.05, 'T', true);
+        $this->pdf->MultiCell(self::WIDTH, $height, $text, 0, 'L', false, 1, '', '', true, 0, false, true, $height, 'T', true);
+    }
+
+    /** Data de cientificação, identificação e assinatura, e nº / chave da NFS-e (sem o prefixo NFS). */
+    private function stub(DanfseData $d): void
+    {
+        $y = self::BOTTOM - self::STUB_HEIGHT;
+        $this->line($y);
+        $this->pdf->SetLineWidth(0.0176);
+        $this->pdf->Line(self::COL[1], $y, self::COL[1], self::BOTTOM);
+        $this->pdf->Line(self::COL[2], $y, self::COL[2], self::BOTTOM);
+
+        $this->field(self::COL[0], $y, self::COL_W, self::STUB_HEIGHT, 'DATA CIENTIFICAÇÃO', '', upperLabel: true);
+        $this->field(self::COL[1], $y, self::COL_W, self::STUB_HEIGHT, 'IDENTIFICAÇÃO E ASSINATURA', '', upperLabel: true);
+        $this->field(self::COL[2], $y, self::WIDE_W, self::STUB_HEIGHT, 'Nº NFS-E / CHAVE NFS-E', $d->number.' / '.$d->access_key, upperLabel: true);
     }
 
     /** Título do bloco na primeira coluna da primeira linha, com fundo cinza (itens 2.2.3 e 2.4.1). */

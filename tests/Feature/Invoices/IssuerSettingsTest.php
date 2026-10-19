@@ -110,6 +110,24 @@ class IssuerSettingsTest extends TestCase
         $this->assertSame(0, Issuer::query()->withoutTenantScope()->count());
     }
 
+    public function test_saves_the_ibs_cbs_defaults_and_checks_their_consistency(): void
+    {
+        $this->actingAs($this->owner)
+            ->put(route('invoices.issuer.update'), $this->issuerPayload(['ibs_cbs_cst' => '000', 'ibs_cbs_class_code' => '200028']))
+            ->assertSessionHasErrors([
+                'ibs_cbs_class_code' => 'A classificação tributária precisa começar pelo CST informado.',
+                'ibs_cbs_operation_code' => 'Informe o código indicador de operação (cIndOp) junto com o CST.',
+            ]);
+
+        $this->actingAs($this->owner)
+            ->put(route('invoices.issuer.update'), $this->issuerPayload([
+                'ibs_cbs_cst' => '000', 'ibs_cbs_class_code' => '000.001', 'ibs_cbs_operation_code' => '100301',
+            ]))
+            ->assertSessionHasNoErrors();
+
+        $this->assertDatabaseHas('invoice_issuers', ['ibs_cbs_cst' => '000', 'ibs_cbs_class_code' => '000001', 'ibs_cbs_operation_code' => '100301']);
+    }
+
     public function test_accepts_alphanumeric_cnpj(): void
     {
         // 12.ABC.345/01DE-35 é um CNPJ alfanumérico com dígitos verificadores corretos.

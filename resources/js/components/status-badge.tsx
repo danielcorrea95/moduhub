@@ -11,7 +11,7 @@ export type DocumentStatus =
 
 export type SignerStatus = 'pending' | 'viewed' | 'signed' | 'rejected';
 
-export type InvoiceStatus = 'pending' | 'issued' | 'rejected' | 'cancelled';
+export type InvoiceStatus = 'pending' | 'issued' | 'rejected' | 'cancelled' | 'replaced';
 
 type Tone = 'signed' | 'pending' | 'rejected' | 'sent' | 'idle';
 
@@ -45,6 +45,7 @@ export const INVOICE_STATUS: Record<InvoiceStatus, { label: string; tone: Tone }
     issued: { label: 'Emitida', tone: 'signed' },
     rejected: { label: 'Rejeitada', tone: 'rejected' },
     cancelled: { label: 'Cancelada', tone: 'idle' },
+    replaced: { label: 'Substituída', tone: 'idle' },
 };
 
 const STATUS_MAPS = { document: DOCUMENT_STATUS, signer: SIGNER_STATUS, invoice: INVOICE_STATUS };

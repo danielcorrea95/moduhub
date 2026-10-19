@@ -31,6 +31,7 @@ interface Props {
     statusCounts: Partial<Record<InvoiceStatus, number>>;
     filters: { status: InvoiceStatus | null; search: string | null };
     issuerReady: boolean;
+    usage: { used: number; included: number | null; remaining: number | null; overage_allowed: boolean; period_end: string; plan: string | null };
     [key: string]: unknown;
 }
 
@@ -40,6 +41,7 @@ const FILTERS: { key: InvoiceStatus | null; label: string; dot: string }[] = [
     { key: 'pending', label: 'Aguardando', dot: 'bg-pending' },
     { key: 'rejected', label: 'Rejeitadas', dot: 'bg-rejected' },
     { key: 'cancelled', label: 'Canceladas', dot: 'bg-idle' },
+    { key: 'replaced', label: 'Substituídas', dot: 'bg-idle' },
 ];
 
 function visit(params: { status?: InvoiceStatus | null; search?: string | null }) {
@@ -59,7 +61,7 @@ function rowTitle(i: InvoiceRow) {
     return i.nfse_number ? `NFS-e nº ${i.nfse_number}` : `DPS nº ${i.dps_number}`;
 }
 
-export default function InvoicesIndex({ invoices, statusCounts, filters, issuerReady }: Props) {
+export default function InvoicesIndex({ invoices, statusCounts, filters, issuerReady, usage }: Props) {
     const [search, setSearch] = useState(filters.search ?? '');
     const firstRender = useRef(true);
 
@@ -118,6 +120,26 @@ export default function InvoicesIndex({ invoices, statusCounts, filters, issuerR
                             <Building2 /> Configurar emitente
                         </Link>
                     </Button>
+                </div>
+            )}
+
+            {usage.included !== null && (
+                <div
+                    className={cn(
+                        'flex flex-col gap-1 rounded-lg border px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between',
+                        usage.remaining === 0 && !usage.overage_allowed ? 'border-rejected/30 bg-rejected-soft text-rejected' : 'bg-card text-muted-foreground',
+                    )}
+                    role="status"
+                >
+                    <p>
+                        <span className="font-medium text-foreground tabular-nums">
+                            {usage.used} de {usage.included}
+                        </span>{' '}
+                        notas do plano {usage.plan} neste período, que renova em {formatDate(usage.period_end)}.
+                    </p>
+                    {usage.remaining === 0 && (
+                        <p className="font-medium">{usage.overage_allowed ? 'As próximas entram como excedente.' : 'Cota esgotada: mude de plano para continuar.'}</p>
+                    )}
                 </div>
             )}
 

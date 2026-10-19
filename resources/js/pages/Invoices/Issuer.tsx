@@ -1,9 +1,12 @@
 import { ConfirmAction } from '@/components/confirm-action';
 import { FormSection } from '@/components/form-section';
 import InputError from '@/components/input-error';
+import { MunicipalityInput } from '@/components/municipality-input';
 import PageHeader from '@/components/page-header';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import {
     Select,
@@ -48,6 +51,11 @@ interface IssuerData {
     simples_nacional: number;
     simples_regime: number | null;
     special_regime: number;
+    ibs_cbs: { cst: string | null; class_code: string | null; operation_code: string | null };
+    default_service: { national_tax_code: string | null; municipal_tax_code: string | null; nbs_code: string | null; description: string | null } | null;
+    default_approximate_taxes: { federal: string | null; state: string | null; municipal: string | null } | null;
+    email_taker: boolean;
+    danfse_stub: boolean;
     phone: string | null;
     email: string | null;
     environment: Environment;
@@ -82,6 +90,13 @@ interface IssuerForm {
     simples_nacional: string;
     simples_regime: string;
     special_regime: string;
+    ibs_cbs_cst: string;
+    ibs_cbs_class_code: string;
+    ibs_cbs_operation_code: string;
+    default_service: { national_tax_code: string; municipal_tax_code: string; nbs_code: string; description: string };
+    default_approximate_taxes: { federal: string; state: string; municipal: string };
+    email_taker: boolean;
+    danfse_stub: boolean;
     phone: string;
     email: string;
     environment: Environment;
@@ -175,6 +190,22 @@ export default function InvoicesIssuer({ issuer, canManage, options }: Props) {
         simples_nacional: String(issuer?.simples_nacional ?? 3),
         simples_regime: issuer?.simples_regime ? String(issuer.simples_regime) : '1',
         special_regime: String(issuer?.special_regime ?? 0),
+        ibs_cbs_cst: issuer?.ibs_cbs.cst ?? '',
+        ibs_cbs_class_code: issuer?.ibs_cbs.class_code ?? '',
+        ibs_cbs_operation_code: issuer?.ibs_cbs.operation_code ?? '',
+        default_service: {
+            national_tax_code: issuer?.default_service?.national_tax_code ?? '',
+            municipal_tax_code: issuer?.default_service?.municipal_tax_code ?? '',
+            nbs_code: issuer?.default_service?.nbs_code ?? '',
+            description: issuer?.default_service?.description ?? '',
+        },
+        default_approximate_taxes: {
+            federal: issuer?.default_approximate_taxes?.federal ?? '',
+            state: issuer?.default_approximate_taxes?.state ?? '',
+            municipal: issuer?.default_approximate_taxes?.municipal ?? '',
+        },
+        email_taker: issuer?.email_taker ?? true,
+        danfse_stub: issuer?.danfse_stub ?? false,
         phone: issuer?.phone ?? '',
         email: issuer?.email ?? '',
         environment: issuer?.environment ?? 'restricted',
@@ -284,43 +315,18 @@ export default function InvoicesIssuer({ issuer, canManage, options }: Props) {
                             </div>
                         </div>
 
-                        <div className="grid gap-4 sm:grid-cols-[9rem_1fr_5rem]">
-                            <div className="grid gap-2">
-                                <Label htmlFor="city_code">Código IBGE</Label>
-                                <Input
-                                    id="city_code"
-                                    value={form.data.city_code}
-                                    onChange={(e) => form.setData('city_code', e.target.value.replace(/\D/g, '').slice(0, 7))}
-                                    placeholder="4313409"
-                                    inputMode="numeric"
-                                    aria-invalid={Boolean(form.errors.city_code)}
-                                    required
-                                />
-                                <InputError message={form.errors.city_code} />
-                            </div>
-                            <div className="grid gap-2">
-                                <Label htmlFor="city_name">Município</Label>
-                                <Input
-                                    id="city_name"
-                                    value={form.data.city_name}
-                                    onChange={(e) => form.setData('city_name', e.target.value)}
-                                    placeholder="Novo Hamburgo"
-                                    aria-invalid={Boolean(form.errors.city_name)}
-                                />
-                                <InputError message={form.errors.city_name} />
-                            </div>
-                            <div className="grid gap-2">
-                                <Label htmlFor="state">UF</Label>
-                                <Input
-                                    id="state"
-                                    value={form.data.state}
-                                    onChange={(e) => form.setData('state', e.target.value.toUpperCase().slice(0, 2))}
-                                    placeholder="RS"
-                                    maxLength={2}
-                                    aria-invalid={Boolean(form.errors.state)}
-                                />
-                                <InputError message={form.errors.state} />
-                            </div>
+                        <div className="grid gap-2 sm:max-w-md">
+                            <Label htmlFor="city_code">Município</Label>
+                            <MunicipalityInput
+                                id="city_code"
+                                value={form.data.city_code}
+                                onChange={(code, municipality) =>
+                                    form.setData((data) => ({ ...data, city_code: code, city_name: municipality?.name ?? '', state: municipality?.uf ?? '' }))
+                                }
+                                invalid={Boolean(form.errors.city_code)}
+                                placeholder="Nome do município ou código IBGE"
+                            />
+                            <InputError message={form.errors.city_code} />
                         </div>
                         <p className="-mt-3 text-sm text-muted-foreground">
                             O código IBGE do município do estabelecimento emissor define para qual prefeitura a nota é lançada.
@@ -397,6 +403,134 @@ export default function InvoicesIssuer({ issuer, canManage, options }: Props) {
                                 disabled={readOnly}
                             />
                         </div>
+                    </FormSection>
+
+                    <Separator />
+
+                    <FormSection
+                        title="Padrões de emissão"
+                        description="O que vale quando a nota não informa. Útil para quem emite sempre o mesmo serviço, como mensalidades: o sistema integrado manda só tomador e valor."
+                    >
+                        <div className="grid gap-4 sm:grid-cols-3">
+                            {(
+                                [
+                                    ['national_tax_code', 'Tributação nacional', 'Ex.: 08.01.01', 6],
+                                    ['municipal_tax_code', 'Trib. municipal', '3 dígitos, se houver', 3],
+                                    ['nbs_code', 'Código NBS', '9 dígitos, se houver', 9],
+                                ] as const
+                            ).map(([key, label, hint, size]) => (
+                                <div key={key} className="grid content-start gap-2">
+                                    <Label htmlFor={`default_${key}`}>{label}</Label>
+                                    <Input
+                                        id={`default_${key}`}
+                                        value={form.data.default_service[key]}
+                                        onChange={(e) =>
+                                            form.setData('default_service', { ...form.data.default_service, [key]: e.target.value.replace(/\D/g, '').slice(0, size) })
+                                        }
+                                        inputMode="numeric"
+                                        disabled={readOnly}
+                                    />
+                                    <p className="text-xs text-muted-foreground">{hint}</p>
+                                    <InputError message={(form.errors as Record<string, string | undefined>)[`default_service.${key}`]} />
+                                </div>
+                            ))}
+                        </div>
+                        <div className="grid gap-2">
+                            <Label htmlFor="default_description">Descrição padrão do serviço</Label>
+                            <Textarea
+                                id="default_description"
+                                value={form.data.default_service.description}
+                                onChange={(e) => form.setData('default_service', { ...form.data.default_service, description: e.target.value })}
+                                rows={2}
+                                maxLength={2000}
+                                placeholder="Ex.: Prestação de serviços educacionais"
+                                disabled={readOnly}
+                            />
+                            <p className="text-xs text-muted-foreground">Usada quando a nota vem sem descrição.</p>
+                        </div>
+                        <div className="grid gap-4 sm:grid-cols-3">
+                            {(
+                                [
+                                    ['federal', 'Tributos federais (%)'],
+                                    ['state', 'Tributos estaduais (%)'],
+                                    ['municipal', 'Tributos municipais (%)'],
+                                ] as const
+                            ).map(([key, label]) => (
+                                <div key={key} className="grid content-start gap-2">
+                                    <Label htmlFor={`default_tax_${key}`}>{label}</Label>
+                                    <Input
+                                        id={`default_tax_${key}`}
+                                        type="number"
+                                        step="0.01"
+                                        min="0"
+                                        max="100"
+                                        value={form.data.default_approximate_taxes[key]}
+                                        onChange={(e) => form.setData('default_approximate_taxes', { ...form.data.default_approximate_taxes, [key]: e.target.value })}
+                                        disabled={readOnly}
+                                    />
+                                </div>
+                            ))}
+                        </div>
+                        <p className="-mt-2 text-xs text-muted-foreground">
+                            Percentuais aproximados da Lei 12.741 (tabela do IBPT para o código do serviço), impressos na nota.
+                        </p>
+                        <div className="flex items-center gap-2.5">
+                            <Checkbox
+                                id="email_taker"
+                                checked={form.data.email_taker}
+                                onCheckedChange={(checked) => form.setData('email_taker', checked === true)}
+                                disabled={readOnly}
+                            />
+                            <Label htmlFor="email_taker" className="font-normal">
+                                Enviar a nota por e-mail ao tomador assim que for emitida (DANFSe e XML anexados)
+                            </Label>
+                        </div>
+                        <div className="flex items-center gap-2.5">
+                            <Checkbox
+                                id="danfse_stub"
+                                checked={form.data.danfse_stub}
+                                onCheckedChange={(checked) => form.setData('danfse_stub', checked === true)}
+                                disabled={readOnly}
+                            />
+                            <Label htmlFor="danfse_stub" className="font-normal">
+                                Imprimir canhoto no DANFSe (data, assinatura de quem recebeu e número da nota)
+                            </Label>
+                        </div>
+                    </FormSection>
+
+                    <Separator />
+
+                    <FormSection
+                        title="IBS e CBS"
+                        description="Classificação da reforma tributária que vai em todas as notas, salvo quando a nota informar outra. Peça os códigos ao contador."
+                    >
+                        <div className="grid gap-4 sm:grid-cols-3">
+                            {(
+                                [
+                                    ['ibs_cbs_cst', 'CST', 3, 'Ex.: 000'],
+                                    ['ibs_cbs_class_code', 'Classificação (cClassTrib)', 6, 'Começa pelo CST'],
+                                    ['ibs_cbs_operation_code', 'Indicador de operação (cIndOp)', 6, '6 dígitos'],
+                                ] as const
+                            ).map(([key, label, size, hint]) => (
+                                <div key={key} className="grid content-start gap-2">
+                                    <Label htmlFor={key}>{label}</Label>
+                                    <Input
+                                        id={key}
+                                        value={form.data[key]}
+                                        onChange={(e) => form.setData(key, e.target.value.replace(/\D/g, '').slice(0, size))}
+                                        inputMode="numeric"
+                                        aria-invalid={Boolean(form.errors[key])}
+                                        disabled={readOnly}
+                                    />
+                                    <p className="text-xs text-muted-foreground">{hint}</p>
+                                    <InputError message={form.errors[key]} />
+                                </div>
+                            ))}
+                        </div>
+                        <p className="-mt-2 text-sm text-muted-foreground">
+                            Sem estes códigos a DPS sai sem o grupo IBS/CBS. Para empresas do regime regular ele já é exigido desde 01/10/2026,
+                            sem rejeição até 31/12/2026; para optantes do Simples Nacional, a partir de 01/01/2027.
+                        </p>
                     </FormSection>
 
                     <Separator />

@@ -11,6 +11,9 @@ use App\Http\Controllers\WebhookEndpointController;
 use App\Http\Controllers\WorkspaceController;
 use App\Modules\Invoices\Http\Controllers\InvoiceController as InvoicesController;
 use App\Modules\Invoices\Http\Controllers\IssuerController as InvoicesIssuerController;
+use App\Modules\Invoices\Http\Controllers\MunicipalAgreementController as InvoicesAgreementController;
+use App\Modules\Invoices\Http\Controllers\MunicipalityController as InvoicesMunicipalityController;
+use App\Modules\Invoices\Http\Controllers\ReceivedInvoiceController as InvoicesReceivedController;
 use App\Modules\Signatures\Http\Controllers\DocumentController as SignaturesDocumentController;
 use App\Modules\Signatures\Http\Controllers\PublicSignController as SignaturesPublicController;
 use App\Modules\Signatures\Http\Controllers\SignerController as SignaturesSignerController;
@@ -102,6 +105,15 @@ Route::middleware('auth')->group(function () {
         Route::get('/create', [InvoicesController::class, 'create'])->name('create');
         Route::post('/', [InvoicesController::class, 'store'])->name('store');
         Route::get('/service-code-check', [InvoicesController::class, 'checkServiceCode'])->name('service-code-check');
+        Route::get('/municipalities', [InvoicesMunicipalityController::class, 'index'])->name('municipalities');
+        Route::get('/agreements', [InvoicesAgreementController::class, 'index'])->name('agreements');
+        Route::get('/received', [InvoicesReceivedController::class, 'index'])->name('received.index');
+        Route::post('/received/sync', [InvoicesReceivedController::class, 'sync'])->middleware('throttle:6,1')->name('received.sync');
+        Route::whereUlid('receivedInvoice')->group(function () {
+            Route::get('/received/{receivedInvoice}/xml', [InvoicesReceivedController::class, 'xml'])->name('received.xml');
+            Route::get('/received/{receivedInvoice}/pdf', [InvoicesReceivedController::class, 'pdf'])->name('received.pdf');
+            Route::post('/received/{receivedInvoice}/manifest', [InvoicesReceivedController::class, 'manifest'])->name('received.manifest');
+        });
         // ULID na restrição para /invoices/issuer e /invoices/create nunca caírem aqui.
         Route::whereUlid('invoice')->group(function () {
             Route::get('/{invoice}', [InvoicesController::class, 'show'])->name('show');
@@ -109,6 +121,9 @@ Route::middleware('auth')->group(function () {
             Route::get('/{invoice}/pdf', [InvoicesController::class, 'pdf'])->name('pdf');
             Route::post('/{invoice}/sync', [InvoicesController::class, 'sync'])->name('sync');
             Route::post('/{invoice}/cancel', [InvoicesController::class, 'cancel'])->name('cancel');
+            Route::post('/{invoice}/replace', [InvoicesController::class, 'replace'])->name('replace');
+            Route::post('/{invoice}/cancellation-review', [InvoicesController::class, 'cancellationReview'])->name('cancellation-review');
+            Route::post('/{invoice}/email', [InvoicesController::class, 'email'])->middleware('throttle:10,1')->name('email');
         });
     });
 });

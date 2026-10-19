@@ -32,7 +32,7 @@ class DanfseTest extends TestCase
         $this->assertSame('(11) 99999-0000', $d->provider['phone']);
 
         $this->assertSame('529.982.247-25', $d->taker['document']);
-        $this->assertSame('- / RS', $d->taker['city'], 'Sem nome do município no XML, só a UF derivada do código IBGE.');
+        $this->assertSame('Novo Hamburgo / RS', $d->taker['city'], 'O XML só traz o código IBGE do tomador; o nome vem da tabela do IBGE.');
         $this->assertSame('Rua Julio de Castilhos, 100, Centro', $d->taker['address']);
         $this->assertNull($d->intermediary);
 
@@ -86,5 +86,15 @@ class DanfseTest extends TestCase
     private function fixture(): string
     {
         return file_get_contents(base_path('tests/Fixtures/nfse/nfse-sp-restrita.xml'));
+    }
+
+    public function test_stub_is_printed_only_when_the_issuer_asks(): void
+    {
+        $renderer = app(DanfseRenderer::class);
+        $data = DanfseData::fromNfseXml((string) file_get_contents(base_path('tests/Fixtures/nfse/nfse-sp-restrita.xml')));
+        $text = fn (string $pdf) => (new Parser)->parseContent($pdf)->getText();
+
+        $this->assertStringContainsString('IDENTIFICAÇÃO E ASSINATURA', $text($renderer->render($data, stub: true)));
+        $this->assertStringNotContainsString('IDENTIFICAÇÃO E ASSINATURA', $text($renderer->render($data)));
     }
 }

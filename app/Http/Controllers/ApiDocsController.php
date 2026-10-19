@@ -19,7 +19,8 @@ class ApiDocsController extends Controller
         return Inertia::render('Docs/Api', [
             'baseUrl' => rtrim(url('/api/v1'), '/'),
             'scopes' => collect($scopes)->map(fn ($label, $key) => ['key' => $key, 'label' => $label])->values(),
-            'events' => collect(EventCatalog::forModules([Module::SIGNATURES])[Module::SIGNATURES] ?? [])
+            'events' => collect(EventCatalog::forModules([Module::SIGNATURES, Module::INVOICES]))
+                ->collapse()
                 ->map(fn ($label, $key) => ['key' => $key, 'label' => $label])->values(),
             'rateLimitPerMinute' => AppServiceProvider::API_REQUESTS_PER_MINUTE,
         ]);

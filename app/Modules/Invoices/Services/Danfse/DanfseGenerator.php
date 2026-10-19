@@ -3,6 +3,7 @@
 namespace App\Modules\Invoices\Services\Danfse;
 
 use App\Modules\Invoices\Models\Invoice;
+use App\Modules\Invoices\Models\ReceivedInvoice;
 use LogicException;
 
 /**
@@ -19,7 +20,20 @@ class DanfseGenerator
             throw new LogicException('A NFS-e ainda não foi gerada; não há DANFSe.');
         }
 
-        return $this->renderer->render(DanfseData::fromNfseXml($invoice->nfse_xml, cancelled: $invoice->isCancelled()));
+        return $this->renderer->render(
+            DanfseData::fromNfseXml($invoice->nfse_xml, cancelled: $invoice->isCancelled(), replaced: $invoice->isReplaced()),
+            stub: (bool) $invoice->issuer?->danfse_stub,
+        );
+    }
+
+    /** DANFSe de uma nota de terceiro recebida pelo ADN: mesmo layout, a partir do XML distribuído. */
+    public function forReceived(ReceivedInvoice $invoice): string
+    {
+        return $this->renderer->render(DanfseData::fromNfseXml(
+            $invoice->nfse_xml,
+            cancelled: $invoice->status === ReceivedInvoice::STATUS_CANCELLED,
+            replaced: $invoice->status === ReceivedInvoice::STATUS_REPLACED,
+        ));
     }
 
     public function filename(Invoice $invoice): string

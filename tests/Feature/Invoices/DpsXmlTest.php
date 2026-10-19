@@ -73,6 +73,200 @@ class DpsXmlTest extends TestCase
         }
     }
 
+    public function test_replacement_dps_carries_the_subst_group(): void
+    {
+        [$issuer, $invoice] = $this->fixtures();
+        $original = new Invoice;
+        $original->forceFill(['access_key' => str_repeat('3', 50)]);
+        $invoice->forceFill(['substitution_reason_code' => '99', 'substitution_reason' => 'Descrição do serviço saiu incompleta']);
+        $invoice->setRelation('replaces', $original);
+        $invoice->replaces_invoice_id = '01JZZZZZZZZZZZZZZZZZZZZZZZ';
+
+        $doc = app(DpsBuilder::class)->build($invoice, $issuer);
+        app(XmlSigner::class)->sign($this->element($doc, 'infDPS'), $this->credentials());
+        app(XmlSchemaValidator::class)->assertValid($doc, 'DPS_v1.01.xsd');
+
+        $this->assertStringContainsString(
+            '<cLocEmi>4313409</cLocEmi><subst><chSubstda>'.str_repeat('3', 50).'</chSubstda><cMotivo>99</cMotivo>'
+            .'<xMotivo>Descrição do serviço saiu incompleta</xMotivo></subst><prest>',
+            $doc->saveXML(),
+        );
+    }
+
+    public function test_export_to_a_foreign_taker_with_intermediary_discounts_and_deduction(): void
+    {
+        [$issuer, $invoice] = $this->fixtures();
+        $invoice->forceFill([
+            'taker' => [
+                'nif' => 'DE123456789',
+                'name' => 'Müller GmbH',
+                'email' => 'billing@mueller.test',
+                'address' => [
+                    'country' => 'DE', 'postal_code' => '10115', 'street' => 'Invalidenstraße', 'number' => '117',
+                    'district' => 'Mitte', 'city' => 'Berlin', 'state' => 'Berlin',
+                ],
+            ],
+            'intermediary' => ['document' => '52998224725', 'name' => 'Representante Comercial'],
+            'service' => [
+                'national_tax_code' => '010701',
+                'description' => 'Desenvolvimento de software sob encomenda',
+                'result_country' => 'DE',
+                'foreign_trade' => ['provision_mode' => '1', 'currency' => '978', 'foreign_amount' => '250.00'],
+            ],
+            'iss_taxation' => Invoice::ISS_EXPORT,
+            'iss_withheld' => true,
+            'iss_withholder' => Invoice::WITHHOLDER_INTERMEDIARY,
+            'unconditional_discount' => '100.00',
+            'conditional_discount' => '15.50',
+            'deduction_amount' => '200.00',
+        ]);
+
+        $doc = app(DpsBuilder::class)->build($invoice, $issuer);
+        app(XmlSigner::class)->sign($this->element($doc, 'infDPS'), $this->credentials());
+        app(XmlSchemaValidator::class)->assertValid($doc, 'DPS_v1.01.xsd');
+
+        $xml = $doc->saveXML();
+        $this->assertStringContainsString('<toma><NIF>DE123456789</NIF><xNome>Müller GmbH</xNome><end><endExt><cPais>DE</cPais><cEndPost>10115</cEndPost><xCidade>Berlin</xCidade>', $xml);
+        $this->assertStringContainsString('<interm><CPF>52998224725</CPF><xNome>Representante Comercial</xNome></interm>', $xml);
+        $this->assertStringContainsString('<comExt><mdPrestacao>1</mdPrestacao><vincPrest>0</vincPrest><tpMoeda>978</tpMoeda><vServMoeda>250.00</vServMoeda><mecAFComexP>01</mecAFComexP><mecAFComexT>01</mecAFComexT><movTempBens>1</movTempBens><mdic>0</mdic></comExt>', $xml);
+        $this->assertStringContainsString('<vDescCondIncond><vDescIncond>100.00</vDescIncond><vDescCond>15.50</vDescCond></vDescCondIncond><vDedRed><vDR>200.00</vDR></vDedRed>', $xml);
+        $this->assertStringContainsString('<tribISSQN>3</tribISSQN><cPaisResult>DE</cPaisResult><tpRetISSQN>3</tpRetISSQN>', $xml);
+    }
+
+    public function test_foreign_taker_without_nif_and_immune_service(): void
+    {
+        [$issuer, $invoice] = $this->fixtures();
+        $invoice->forceFill([
+            'taker' => ['nif_absence_reason' => '2', 'name' => 'John Doe'],
+            'iss_taxation' => Invoice::ISS_IMMUNE,
+            'immunity_type' => 3,
+            'deduction_percent' => '10.00',
+        ]);
+
+        $doc = app(DpsBuilder::class)->build($invoice, $issuer);
+        app(XmlSigner::class)->sign($this->element($doc, 'infDPS'), $this->credentials());
+        app(XmlSchemaValidator::class)->assertValid($doc, 'DPS_v1.01.xsd');
+
+        $xml = $doc->saveXML();
+        $this->assertStringContainsString('<toma><cNaoNIF>2</cNaoNIF><xNome>John Doe</xNome></toma>', $xml);
+        $this->assertStringContainsString('<vDedRed><pDR>10.00</pDR></vDedRed>', $xml);
+        $this->assertStringContainsString('<tribISSQN>2</tribISSQN><tpImunidade>3</tpImunidade><tpRetISSQN>1</tpRetISSQN>', $xml);
+    }
+
+    public function test_ibs_cbs_group_declares_the_classification(): void
+    {
+        [$issuer, $invoice] = $this->fixtures();
+        $invoice->ibs_cbs = ['cst' => '000', 'class_code' => '000001', 'operation_code' => '100301', 'final_consumer' => false];
+
+        $doc = app(DpsBuilder::class)->build($invoice, $issuer);
+        app(XmlSigner::class)->sign($this->element($doc, 'infDPS'), $this->credentials());
+        app(XmlSchemaValidator::class)->assertValid($doc, 'DPS_v1.01.xsd');
+
+        $this->assertStringContainsString(
+            '</valores><IBSCBS><finNFSe>0</finNFSe><indFinal>0</indFinal><cIndOp>100301</cIndOp><indDest>0</indDest>'
+            .'<valores><trib><gIBSCBS><CST>000</CST><cClassTrib>000001</cClassTrib></gIBSCBS></trib></valores></IBSCBS></infDPS>',
+            $doc->saveXML(),
+        );
+    }
+
+    public function test_deduction_by_documents_covers_every_document_kind(): void
+    {
+        [$issuer, $invoice] = $this->fixtures();
+        $base = ['reason' => '2', 'issued_on' => '2026-10-01', 'deductible_amount' => '100.00', 'amount' => '50.00'];
+        $invoice->deduction_documents = [
+            ['kind' => Invoice::DEDUCTION_DOC_NFSE, 'access_key' => str_repeat('1', 50), ...$base,
+                'supplier' => ['document' => '11222333000181', 'name' => 'Fornecedor de Materiais Ltda']],
+            ['kind' => Invoice::DEDUCTION_DOC_NFE, 'access_key' => str_repeat('2', 44), ...$base],
+            ['kind' => Invoice::DEDUCTION_DOC_MUNICIPAL_NFSE, 'city_code' => '3550308', 'number' => '1234', 'verification_code' => 'AbC12345', ...$base],
+            ['kind' => Invoice::DEDUCTION_DOC_PAPER, 'number' => '581', 'model' => '1', 'series' => 'A1', ...$base],
+            ['kind' => Invoice::DEDUCTION_DOC_FISCAL, 'number' => 'CT-e 9988', ...$base],
+            ['kind' => Invoice::DEDUCTION_DOC_OTHER, 'number' => 'Recibo 17', ...$base, 'reason' => '99', 'reason_description' => 'Taxa de cartório'],
+        ];
+
+        $doc = app(DpsBuilder::class)->build($invoice, $issuer);
+        app(XmlSigner::class)->sign($this->element($doc, 'infDPS'), $this->credentials());
+        app(XmlSchemaValidator::class)->assertValid($doc, 'DPS_v1.01.xsd');
+
+        $xml = $doc->saveXML();
+        $tail = '<tpDedRed>2</tpDedRed><dtEmiDoc>2026-10-01</dtEmiDoc><vDedutivelRedutivel>100.00</vDedutivelRedutivel><vDeducaoReducao>50.00</vDeducaoReducao>';
+        $this->assertStringContainsString('<vDedRed><documentos><docDedRed><chNFSe>'.str_repeat('1', 50).'</chNFSe>'.$tail.'<fornec><CNPJ>11222333000181</CNPJ><xNome>Fornecedor de Materiais Ltda</xNome></fornec></docDedRed>', $xml);
+        $this->assertStringContainsString('<NFSeMun><cMunNFSeMun>3550308</cMunNFSeMun><nNFSeMun>000000000001234</nNFSeMun><cVerifNFSeMun>AbC12345</cVerifNFSeMun></NFSeMun>', $xml);
+        $this->assertStringContainsString('<NFNFS><nNFS>0000581</nNFS><modNFS>000000000000001</modNFS><serieNFS>A1</serieNFS></NFNFS>', $xml);
+        $this->assertStringContainsString('<nDoc>Recibo 17</nDoc><tpDedRed>99</tpDedRed><xDescOutDed>Taxa de cartório</xDescOutDed>', $xml);
+        $this->assertSame(6, substr_count($xml, '<docDedRed>'));
+    }
+
+    public function test_federal_taxes_municipal_benefit_and_iss_suspension(): void
+    {
+        [$issuer, $invoice] = $this->fixtures();
+        $invoice->forceFill([
+            'federal_taxes' => [
+                'pis_cofins' => ['cst' => '01', 'base' => '1500.00', 'pis_rate' => '0.65', 'cofins_rate' => '3.00', 'pis_amount' => '9.75', 'cofins_amount' => '45.00', 'withholding' => '3'],
+                'irrf' => ['rate' => '1.50', 'amount' => '22.50'],
+                'csll' => ['rate' => '1.00', 'amount' => '15.00'],
+                'inss' => ['rate' => null, 'amount' => '165.00'],
+            ],
+            'municipal_benefit' => ['number' => '35503080000012', 'reduction_percent' => '20.00'],
+            'iss_suspension' => ['type' => '1', 'process_number' => '50012345620268260100'],
+        ]);
+
+        $doc = app(DpsBuilder::class)->build($invoice, $issuer);
+        app(XmlSigner::class)->sign($this->element($doc, 'infDPS'), $this->credentials());
+        app(XmlSchemaValidator::class)->assertValid($doc, 'DPS_v1.01.xsd');
+
+        $xml = $doc->saveXML();
+        $this->assertStringContainsString('<tribISSQN>1</tribISSQN><exigSusp><tpSusp>1</tpSusp><nProcesso>000000000050012345620268260100</nProcesso></exigSusp><BM><nBM>35503080000012</nBM><pRedBCBM>20.00</pRedBCBM></BM><tpRetISSQN>1</tpRetISSQN>', $xml);
+        $this->assertStringContainsString(
+            '<tribFed><piscofins><CST>01</CST><vBCPisCofins>1500.00</vBCPisCofins><pAliqPis>0.65</pAliqPis><pAliqCofins>3.00</pAliqCofins><vPis>9.75</vPis><vCofins>45.00</vCofins><tpRetPisCofins>3</tpRetPisCofins></piscofins>'
+            .'<vRetCP>165.00</vRetCP><vRetIRRF>22.50</vRetIRRF><vRetCSLL>15.00</vRetCSLL></tribFed><totTrib>',
+            $xml,
+        );
+    }
+
+    public function test_construction_event_additional_info_and_full_ibs_cbs(): void
+    {
+        [$issuer, $invoice] = $this->fixtures();
+        $address = ['postal_code' => '01310100', 'street' => 'Av. Paulista', 'number' => '1000', 'district' => 'Bela Vista'];
+        $invoice->forceFill([
+            'service' => [
+                'national_tax_code' => '070201',
+                'description' => 'Execução de obra',
+                'construction' => ['registration' => 'IPTU-123', 'address' => $address],
+                'event' => ['name' => 'Feira do Livro', 'starts_on' => '2026-11-01', 'ends_on' => '2026-11-03', 'event_id' => 'EVT-2026-77'],
+                'additional_info' => ['technical_document' => 'ART 123', 'reference' => 'Contrato 45/2026', 'order' => 'PED-9', 'order_items' => ['1', '2'], 'notes' => 'Aluno: Fulano de Tal'],
+            ],
+            'intermediary' => ['document' => '52998224725', 'name' => 'Representante'],
+            'intermediary_received' => '1600.00',
+            'ibs_cbs' => [
+                'cst' => '000', 'class_code' => '000001', 'operation_code' => '100301', 'final_consumer' => null,
+                'operation_type' => '1',
+                'referenced_invoices' => [str_repeat('4', 50)],
+                'government_entity' => '4',
+                'recipient' => ['document' => '11222333000181', 'name' => 'Filial Destinatária', 'municipal_registration' => '999'],
+                'property' => ['cib' => 'AB12CD34'],
+                'reimbursements' => [
+                    ['kind' => 'dfe', 'dfe_type' => '2', 'access_key' => str_repeat('5', 44), 'issued_on' => '2026-10-01', 'competence_on' => '2026-10-01', 'type' => '03', 'amount' => '100.00',
+                        'supplier' => ['document' => '11222333000181', 'name' => 'Gráfica']],
+                    ['kind' => 'fiscal_document', 'city_code' => '3550308', 'number' => '77', 'description' => 'Nota municipal', 'issued_on' => '2026-10-01', 'competence_on' => '2026-10-01', 'type' => '99', 'type_description' => 'Taxa', 'amount' => '20.00'],
+                    ['kind' => 'other_document', 'number' => 'R-1', 'description' => 'Recibo', 'issued_on' => '2026-10-01', 'competence_on' => '2026-10-01', 'type' => '01', 'amount' => '10.00'],
+                ],
+            ],
+        ]);
+
+        $doc = app(DpsBuilder::class)->build($invoice, $issuer);
+        app(XmlSigner::class)->sign($this->element($doc, 'infDPS'), $this->credentials());
+        app(XmlSchemaValidator::class)->assertValid($doc, 'DPS_v1.01.xsd');
+
+        $xml = $doc->saveXML();
+        $this->assertStringContainsString('<obra><inscImobFisc>IPTU-123</inscImobFisc><end><CEP>01310100</CEP><xLgr>Av. Paulista</xLgr>', $xml);
+        $this->assertStringContainsString('<atvEvento><xNome>Feira do Livro</xNome><dtIni>2026-11-01</dtIni><dtFim>2026-11-03</dtFim><idAtvEvt>EVT-2026-77</idAtvEvt></atvEvento>', $xml);
+        $this->assertStringContainsString('<infoCompl><idDocTec>ART 123</idDocTec><docRef>Contrato 45/2026</docRef><xPed>PED-9</xPed><gItemPed><xItemPed>1</xItemPed><xItemPed>2</xItemPed></gItemPed><xInfComp>Aluno: Fulano de Tal</xInfComp></infoCompl>', $xml);
+        $this->assertStringContainsString('<vServPrest><vReceb>1600.00</vReceb><vServ>1500.00</vServ></vServPrest>', $xml);
+        $this->assertStringContainsString('<cIndOp>100301</cIndOp><tpOper>1</tpOper><gRefNFSe><refNFSe>'.str_repeat('4', 50).'</refNFSe></gRefNFSe><tpEnteGov>4</tpEnteGov><indDest>1</indDest><dest><CNPJ>11222333000181</CNPJ><xNome>Filial Destinatária</xNome></dest><imovel><cCIB>AB12CD34</cCIB></imovel>', $xml);
+        $this->assertStringContainsString('<valores><gReeRepRes><documentos><dFeNacional><tipoChaveDFe>2</tipoChaveDFe>', $xml);
+        $this->assertSame(3, substr_count($xml, '<documentos>'));
+    }
+
     public function test_cancellation_request_follows_the_schema(): void
     {
         [$issuer, $invoice] = $this->fixtures();

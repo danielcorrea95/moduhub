@@ -229,6 +229,259 @@ class InvoicesApiTest extends TestCase
         $this->assertSame(1, Issuer::withoutGlobalScopes()->value('next_dps_number'), 'Erro de validação não consome número de DPS.');
     }
 
+    public function test_exports_to_a_foreign_taker_through_an_intermediary(): void
+    {
+        $this->configureIssuer($this->tenant);
+        $payload = $this->invoicePayload([
+            'external_id' => 'pedido-export',
+            'taker' => [
+                'document' => null,
+                'nif' => 'DE123456789',
+                'name' => 'Müller GmbH',
+                'phone' => null,
+                'address' => [
+                    'country' => 'de', 'postal_code' => '10115', 'street' => 'Invalidenstraße', 'number' => '117',
+                    'complement' => null, 'district' => 'Mitte', 'city_code' => null, 'city' => 'Berlin', 'state' => 'Berlin',
+                ],
+            ],
+            'intermediary' => ['document' => '529.982.247-25', 'name' => 'Representante Comercial'],
+            'service' => [
+                'result_country' => 'DE',
+                'foreign_trade' => ['provision_mode' => '1', 'currency' => '978', 'foreign_amount' => '250.00'],
+            ],
+            'values' => [
+                'iss_taxation' => Invoice::ISS_EXPORT,
+                'iss_withheld' => true,
+                'iss_withholder' => 'intermediary',
+                'discounts' => ['unconditional' => '100.00', 'conditional' => ''],
+                'deduction' => ['amount' => '200.00'],
+            ],
+        ]);
+
+        $this->withToken($this->key(['invoices:*']))
+            ->postJson('/api/v1/invoices', $payload)
+            ->assertCreated()
+            ->assertJsonPath('data.taker.nif', 'DE123456789')
+            ->assertJsonPath('data.taker.address.country', 'DE')
+            ->assertJsonPath('data.intermediary.document', '52998224725')
+            ->assertJsonPath('data.values.discounts.unconditional', '100.00')
+            ->assertJsonPath('data.values.discounts.conditional', null)
+            ->assertJsonPath('data.values.deduction.amount', '200.00')
+            ->assertJsonPath('data.values.iss_withholder', 'intermediary');
+
+        $invoice = Invoice::withoutGlobalScopes()->firstOrFail();
+        $this->assertSame('DE123456789', $invoice->taker_document);
+        $this->assertStringContainsString('<tpRetISSQN>3</tpRetISSQN>', $invoice->dps_xml);
+    }
+
+    public function test_validates_foreign_parties_and_export_groups(): void
+    {
+        $this->configureIssuer($this->tenant);
+
+        $this->withToken($this->key(['invoices:*']))
+            ->postJson('/api/v1/invoices', $this->invoicePayload([
+                'taker' => [
+                    'document' => '11.222.333/0001-81',
+                    'nif' => 'X1',
+                    'address' => ['country' => 'US', 'city_code' => '4313409', 'city' => null],
+                ],
+                'values' => ['iss_taxation' => Invoice::ISS_EXPORT, 'iss_withheld' => true, 'iss_withholder' => 'intermediary', 'discounts' => ['unconditional' => '1500.00']],
+            ]))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors([
+                'taker.document', 'taker.address.city_code', 'taker.address.city', 'taker.address.state',
+                'service.result_country', 'service.foreign_trade', 'values.iss_withholder', 'values.discounts.unconditional',
+            ]);
+
+        $this->withToken($this->key(['invoices:*']))
+            ->postJson('/api/v1/invoices', $this->invoicePayload([
+                'taker' => ['document' => null],
+                'values' => ['iss_taxation' => Invoice::ISS_IMMUNE, 'deduction' => ['percent' => 10, 'amount' => 5]],
+            ]))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['taker.document', 'values.immunity_type', 'values.deduction.percent']);
+    }
+
+    public function test_ibs_cbs_comes_from_the_issuer_defaults_or_the_invoice(): void
+    {
+        $this->configureIssuer($this->tenant, ['ibs_cbs_cst' => '000', 'ibs_cbs_class_code' => '000001', 'ibs_cbs_operation_code' => '100301']);
+        $key = $this->key(['invoices:*']);
+
+        $this->withToken($key)->postJson('/api/v1/invoices', $this->invoicePayload())
+            ->assertCreated()
+            ->assertJsonPath('data.values.ibs_cbs', ['cst' => '000', 'class_code' => '000001', 'operation_code' => '100301', 'final_consumer' => null]);
+        $this->assertStringContainsString('<cIndOp>100301</cIndOp><indDest>0</indDest>', $this->sefin()->requests[0]['xml']);
+
+        $this->withToken($key)->postJson('/api/v1/invoices', $this->invoicePayload([
+            'external_id' => 'pedido-1002',
+            'values' => ['ibs_cbs' => ['cst' => '200', 'class_code' => '200028', 'operation_code' => '100301', 'final_consumer' => true]],
+        ]))
+            ->assertCreated()
+            ->assertJsonPath('data.values.ibs_cbs.cst', '200');
+        $this->assertStringContainsString('<indFinal>1</indFinal>', $this->sefin()->requests[1]['xml']);
+        $this->assertStringContainsString('<CST>200</CST><cClassTrib>200028</cClassTrib>', $this->sefin()->requests[1]['xml']);
+
+        $this->withToken($key)->postJson('/api/v1/invoices', $this->invoicePayload([
+            'external_id' => 'pedido-1003',
+            'values' => ['ibs_cbs' => ['cst' => '200', 'class_code' => '000001']],
+        ]))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['values.ibs_cbs.class_code', 'values.ibs_cbs.operation_code']);
+    }
+
+    public function test_without_ibs_cbs_codes_the_dps_has_no_group(): void
+    {
+        $this->configureIssuer($this->tenant);
+
+        $this->withToken($this->key(['invoices:*']))->postJson('/api/v1/invoices', $this->invoicePayload())
+            ->assertCreated()
+            ->assertJsonPath('data.values.ibs_cbs', null);
+        $this->assertStringNotContainsString('<IBSCBS>', $this->sefin()->requests[0]['xml']);
+    }
+
+    public function test_deduction_by_documents(): void
+    {
+        $this->configureIssuer($this->tenant);
+        $key = $this->key(['invoices:*']);
+
+        $this->withToken($key)->postJson('/api/v1/invoices', $this->invoicePayload([
+            'values' => ['deduction' => ['documents' => [[
+                'kind' => 'nfe', 'access_key' => '3526 1011 2223 3300 0181 5500 1000 0012 3410 0001 2345',
+                'reason' => '2', 'issued_on' => '2026-10-01', 'deductible_amount' => '800.00', 'amount' => '600.00',
+                'number' => '', 'city_code' => '', 'supplier' => ['document' => '', 'name' => ''],
+            ]]]],
+        ]))
+            ->assertCreated()
+            ->assertJsonPath('data.values.deduction.documents.0.access_key', '35261011222333000181550010000012341000012345')
+            ->assertJsonPath('data.values.deduction.documents.0.amount', '600.00')
+            ->assertJsonMissingPath('data.values.deduction.documents.0.supplier');
+        $this->assertStringContainsString('<vDedRed><documentos><docDedRed><chNFe>', $this->sefin()->requests[0]['xml']);
+
+        $this->withToken($key)->postJson('/api/v1/invoices', $this->invoicePayload([
+            'external_id' => 'pedido-1002',
+            'values' => ['deduction' => ['amount' => '10.00', 'documents' => [
+                ['kind' => 'municipal_nfse', 'number' => '12', 'reason' => '99', 'issued_on' => '2026-10-01', 'deductible_amount' => '100', 'amount' => '200'],
+                ['kind' => 'nfse', 'access_key' => '123', 'model' => '1', 'reason' => '2', 'issued_on' => '2026-10-01', 'deductible_amount' => '2000', 'amount' => '1400'],
+            ]]],
+        ]))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors([
+                'values.deduction.amount',
+                'values.deduction.documents.0.city_code',
+                'values.deduction.documents.0.verification_code',
+                'values.deduction.documents.0.reason_description',
+                'values.deduction.documents.0.amount',
+                'values.deduction.documents.1.access_key',
+                'values.deduction.documents.1.model',
+                'values.deduction.documents',
+            ]);
+    }
+
+    public function test_federal_withholdings_are_computed_from_the_rates(): void
+    {
+        $this->configureIssuer($this->tenant);
+
+        $this->withToken($this->key(['invoices:*']))
+            ->postJson('/api/v1/invoices', $this->invoicePayload([
+                'values' => ['federal_taxes' => [
+                    'pis_cofins' => ['cst' => '1', 'pis_rate' => '0.65', 'cofins_rate' => '3', 'withholding' => '3'],
+                    'irrf' => ['rate' => '1.5'],
+                    'csll' => ['rate' => '1'],
+                    'inss' => ['amount' => '165.00', 'rate' => ''],
+                ]],
+            ]))
+            ->assertCreated()
+            ->assertJsonPath('data.values.federal_taxes.pis_cofins.cst', '01')
+            ->assertJsonPath('data.values.federal_taxes.pis_cofins.base', '1500.00')
+            ->assertJsonPath('data.values.federal_taxes.pis_cofins.pis_amount', '9.75')
+            ->assertJsonPath('data.values.federal_taxes.pis_cofins.cofins_amount', '45.00')
+            ->assertJsonPath('data.values.federal_taxes.irrf.amount', '22.50')
+            ->assertJsonPath('data.values.federal_taxes.csll.amount', '15.00')
+            ->assertJsonPath('data.values.federal_taxes.inss.amount', '165.00');
+
+        $this->assertStringContainsString('<vRetIRRF>22.50</vRetIRRF>', $this->sefin()->requests[0]['xml']);
+
+        $this->withToken($this->key(['invoices:*']))
+            ->postJson('/api/v1/invoices', $this->invoicePayload([
+                'external_id' => 'pedido-2',
+                'values' => [
+                    'federal_taxes' => ['pis_cofins' => ['cst' => '10'], 'irrf' => ['rate' => 1, 'amount' => 5]],
+                    'municipal_benefit' => ['number' => '123'],
+                    'iss_suspension' => ['type' => '3'],
+                ],
+            ]))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors([
+                'values.federal_taxes.pis_cofins.cst', 'values.federal_taxes.irrf.rate',
+                'values.municipal_benefit.number', 'values.iss_suspension.type', 'values.iss_suspension.process_number',
+            ]);
+    }
+
+    public function test_special_groups_through_the_api(): void
+    {
+        $this->configureIssuer($this->tenant, ['ibs_cbs_cst' => '000', 'ibs_cbs_class_code' => '000001', 'ibs_cbs_operation_code' => '100301']);
+        $key = $this->key(['invoices:*']);
+
+        $this->withToken($key)->postJson('/api/v1/invoices', $this->invoicePayload([
+            'intermediary' => ['document' => '529.982.247-25', 'name' => 'Representante'],
+            'service' => [
+                'construction' => ['work_code' => 'OBRA-1', 'cib' => '', 'address' => ['postal_code' => '', 'street' => '']],
+                'additional_info' => ['notes' => 'Aluno: Fulano', 'order_items' => []],
+            ],
+            'values' => [
+                'intermediary_received' => '1600.00',
+                'ibs_cbs' => [
+                    'recipient' => ['document' => '11.222.333/0001-81', 'name' => 'Filial'],
+                    'property' => ['address' => ['postal_code' => '01310-100', 'street' => 'Av. Paulista', 'number' => '1000', 'district' => 'Bela Vista']],
+                    'reimbursements' => [['kind' => 'other_document', 'number' => 'R-1', 'description' => 'Recibo', 'issued_on' => '2026-10-01', 'competence_on' => '2026-10-01', 'type' => '1', 'amount' => '10']],
+                ],
+            ],
+        ]))
+            ->assertCreated()
+            ->assertJsonPath('data.service.construction', ['work_code' => 'OBRA-1'])
+            ->assertJsonPath('data.service.additional_info', ['notes' => 'Aluno: Fulano'])
+            ->assertJsonPath('data.values.intermediary_received', '1600.00')
+            ->assertJsonPath('data.values.ibs_cbs.cst', '000')
+            ->assertJsonPath('data.values.ibs_cbs.recipient.document', '11222333000181')
+            ->assertJsonPath('data.values.ibs_cbs.reimbursements.0.type', '01');
+
+        $xml = $this->sefin()->requests[0]['xml'];
+        $this->assertStringContainsString('<obra><cObra>OBRA-1</cObra></obra><infoCompl><xInfComp>Aluno: Fulano</xInfComp></infoCompl>', $xml);
+        $this->assertStringContainsString('<indDest>1</indDest><dest><CNPJ>11222333000181</CNPJ>', $xml);
+        $this->assertStringContainsString('<imovel><end><CEP>01310100</CEP>', $xml);
+
+        $this->withToken($key)->postJson('/api/v1/invoices', $this->invoicePayload([
+            'external_id' => 'pedido-2',
+            'service' => [
+                'construction' => ['work_code' => 'X', 'cib' => 'ABC'],
+                'event' => ['name' => 'Feira', 'starts_on' => '2026-11-03', 'ends_on' => '2026-11-01'],
+            ],
+            'values' => [
+                'intermediary_received' => '10',
+                'ibs_cbs' => ['reimbursements' => [['kind' => 'dfe', 'number' => '1', 'type' => '99', 'issued_on' => '2026-10-01', 'competence_on' => '2026-10-01', 'amount' => '5']]],
+            ],
+        ]))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors([
+                'service.construction.work_code', 'service.construction.cib',
+                'service.event.ends_on', 'service.event.event_id',
+                'values.intermediary_received',
+                'values.ibs_cbs.reimbursements.0.dfe_type', 'values.ibs_cbs.reimbursements.0.access_key',
+                'values.ibs_cbs.reimbursements.0.number', 'values.ibs_cbs.reimbursements.0.type_description',
+            ]);
+    }
+
+    public function test_ibs_cbs_extras_need_the_classification_codes(): void
+    {
+        $this->configureIssuer($this->tenant);
+
+        $this->withToken($this->key(['invoices:*']))->postJson('/api/v1/invoices', $this->invoicePayload([
+            'values' => ['ibs_cbs' => ['government_entity' => '4']],
+        ]))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['values.ibs_cbs.cst']);
+    }
+
     public function test_read_only_key_cannot_issue(): void
     {
         $this->withToken($this->key(['invoices:read']))
@@ -270,6 +523,46 @@ class InvoicesApiTest extends TestCase
         $this->assertSame('pedido-1001', $fired[1][2]['external_id']);
         $this->assertSame('E0001', $fired[0][2]['errors'][0]['code']);
         $this->assertSame(2, $fired[2][2]['cancel_reason_code']);
+    }
+
+    public function test_replaces_an_issued_invoice_and_fires_the_replaced_webhook(): void
+    {
+        $fired = [];
+        $this->mock(WebhookDispatcherContract::class)
+            ->shouldReceive('fire')
+            ->andReturnUsing(function (Tenant $tenant, string $event, array $payload) use (&$fired) {
+                $fired[] = [$event, $payload];
+            });
+        $this->configureIssuer($this->tenant);
+        $key = $this->key(['invoices:*']);
+        $original = $this->withToken($key)->postJson('/api/v1/invoices', $this->invoicePayload())->json('data');
+
+        $replacement = $this->withToken($key)
+            ->postJson("/api/v1/invoices/{$original['id']}/replace", $this->invoicePayload([
+                'taker' => ['name' => 'Cliente Exemplo Ltda'],
+                'substitution' => ['reason_code' => '99', 'reason' => 'Razão social do tomador estava errada'],
+            ]))
+            ->assertCreated()
+            ->assertJsonPath('data.status', Invoice::STATUS_ISSUED)
+            ->assertJsonPath('data.substitution.replaces_invoice_id', $original['id'])
+            ->assertJsonPath('data.substitution.replaces_access_key', $original['access_key'])
+            ->assertJsonPath('data.substitution.reason_code', '99')
+            ->json('data');
+
+        $this->withToken($key)->getJson("/api/v1/invoices/{$original['id']}")
+            ->assertOk()
+            ->assertJsonPath('data.status', Invoice::STATUS_REPLACED)
+            ->assertJsonPath('data.replacement.invoice_id', $replacement['id'])
+            ->assertJsonPath('data.replacement.access_key', $replacement['access_key']);
+
+        $this->assertSame(['invoice.issued', 'invoice.issued', 'invoice.replaced'], array_column($fired, 0));
+        $this->assertSame($original['id'], $fired[1][1]['replaces_invoice_id']);
+        $this->assertSame($replacement['id'], $fired[2][1]['replaced_by_invoice_id']);
+
+        $this->withToken($key)
+            ->postJson("/api/v1/invoices/{$original['id']}/replace", $this->invoicePayload(['substitution' => ['reason_code' => '01']]))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('substitution');
     }
 
     private function key(array $scopes): string
