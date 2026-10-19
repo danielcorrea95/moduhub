@@ -4,6 +4,7 @@ namespace App\Platform\Repositories;
 
 use App\Models\Tenant;
 use App\Models\TenantInvitation;
+use App\Models\TenantUser;
 use App\Models\User;
 use App\Platform\Contracts\MemberRepositoryContract;
 use Illuminate\Support\Collection;
@@ -43,5 +44,13 @@ class MemberRepository implements MemberRepositoryContract
     public function hasMemberWithEmail(Tenant $tenant, string $email): bool
     {
         return $tenant->users()->where('users.email', $email)->exists();
+    }
+
+    public function managers(Tenant $tenant): Collection
+    {
+        return $tenant->users()
+            ->wherePivotIn('role', [TenantUser::ROLE_OWNER, TenantUser::ROLE_ADMIN])
+            ->orderBy('users.name')
+            ->get();
     }
 }

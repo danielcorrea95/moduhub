@@ -2,6 +2,7 @@
 
 namespace App\Modules\Invoices\Providers;
 
+use App\Modules\Invoices\Console\CheckCertificateExpiry;
 use App\Modules\Invoices\Console\SyncDistributedDocuments;
 use App\Modules\Invoices\Console\SyncMunicipalAgreements;
 use App\Modules\Invoices\Contracts\CertificateEventRepositoryContract;
@@ -83,7 +84,7 @@ class InvoicesServiceProvider extends ServiceProvider
         Gate::policy(ReceivedInvoice::class, ReceivedInvoicePolicy::class);
 
         if ($this->app->runningInConsole()) {
-            $this->commands([SyncMunicipalAgreements::class, SyncDistributedDocuments::class]);
+            $this->commands([SyncMunicipalAgreements::class, SyncDistributedDocuments::class, CheckCertificateExpiry::class]);
         }
 
         // Convênios mudam devagar (adesões são publicadas algumas vezes por mês): uma varredura por semana basta.
@@ -91,6 +92,8 @@ class InvoicesServiceProvider extends ServiceProvider
             $schedule->command('invoices:sync-agreements')->weeklyOn(0, '03:00')->withoutOverlapping()->runInBackground();
             // Notas recebidas e eventos de terceiros (rejeição do tomador, cancelamento por ofício) chegam pelo ADN.
             $schedule->command('invoices:sync-documents')->hourly()->withoutOverlapping()->runInBackground();
+            // De manhã, para o aviso chegar em horário comercial.
+            $schedule->command('invoices:check-certificates')->dailyAt('08:00')->timezone('America/Sao_Paulo')->withoutOverlapping();
         });
     }
 }

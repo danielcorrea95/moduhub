@@ -3,6 +3,7 @@
 namespace App\Modules\Invoices\Contracts;
 
 use App\Modules\Invoices\Models\Issuer;
+use Illuminate\Support\Collection;
 
 interface IssuerRepositoryContract
 {
@@ -14,6 +15,13 @@ interface IssuerRepositoryContract
      * contexto (job, comando) o TenantScope não filtra, e forCurrentTenant() traria o emitente de outro cliente.
      */
     public function forTenant(string $tenantId): ?Issuer;
+
+    /**
+     * Emitentes de todos os workspaces que têm certificado, para rotinas agendadas (aviso de vencimento).
+     *
+     * @return Collection<int, Issuer>
+     */
+    public function allWithCertificate(): Collection;
 
     /**
      * Relê o emitente com lock de linha, para reservar o próximo número de DPS sem colisão

@@ -2,6 +2,7 @@
 
 namespace App\Modules\Signatures\Providers;
 
+use App\Modules\Signatures\Console\CheckPlatformCertificate;
 use App\Modules\Signatures\Contracts\DocumentRepositoryContract;
 use App\Modules\Signatures\Contracts\DocumentServiceContract;
 use App\Modules\Signatures\Contracts\DocumentSubmissionServiceContract;
@@ -18,6 +19,7 @@ use App\Modules\Signatures\Services\DocumentService;
 use App\Modules\Signatures\Services\DocumentSubmissionService;
 use App\Modules\Signatures\Services\SignatureService;
 use App\Modules\Signatures\Services\SignerService;
+use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 
@@ -36,5 +38,13 @@ class SignaturesServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Gate::policy(Document::class, DocumentPolicy::class);
+
+        if ($this->app->runningInConsole()) {
+            $this->commands([CheckPlatformCertificate::class]);
+        }
+
+        $this->callAfterResolving(Schedule::class, function (Schedule $schedule) {
+            $schedule->command('signatures:check-platform-certificate')->dailyAt('08:00')->timezone('America/Sao_Paulo')->withoutOverlapping();
+        });
     }
 }

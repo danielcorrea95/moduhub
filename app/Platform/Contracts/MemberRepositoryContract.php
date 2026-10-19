@@ -12,4 +12,7 @@ interface MemberRepositoryContract
     public function pendingInvitations(Tenant $tenant): Collection;
 
     public function hasMemberWithEmail(Tenant $tenant, string $email): bool;
+
+    /** Donos e administradores do workspace: quem recebe avisos que pedem ação (certificado vencendo etc.). */
+    public function managers(Tenant $tenant): Collection;
 }

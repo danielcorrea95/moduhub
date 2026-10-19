@@ -24,6 +24,7 @@ class EventCatalog
                 'invoice.taker_rejected' => 'Tomador ou intermediário rejeitou a NFS-e',
                 'invoice.cancellation_denied' => 'Análise fiscal negou o cancelamento',
                 'invoice.received' => 'NFS-e de terceiro recebida (como tomador, intermediário ou prestador)',
+                'invoice.certificate_expiring' => 'Certificado do emitente vence em 30, 15, 7 ou 1 dia, ou venceu',
             ],
         ];
     }

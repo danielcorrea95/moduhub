@@ -17,6 +17,8 @@ return [
     'seal' => [
         'certificate_path' => env('SIGNATURES_PLATFORM_CERT_PATH', storage_path('app/private/certificates/moduhub.pfx')),
         'certificate_password' => env('SIGNATURES_PLATFORM_CERT_PASSWORD'),
+        // Quem é avisado quando o certificado da plataforma está vencendo ou não abre. Separados por vírgula.
+        'alert_emails' => array_values(array_filter(array_map('trim', explode(',', (string) env('SIGNATURES_PLATFORM_CERT_ALERT_EMAILS', ''))))),
     ],
 
 ];

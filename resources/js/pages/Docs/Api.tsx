@@ -1946,6 +1946,22 @@ export default function ApiDocs({ baseUrl, scopes, events, rateLimitPerMinute }:
                             },
                         ]}
                     />
+                    <ParamTable
+                        title="Evento do emitente: não se refere a uma nota, então não traz os campos acima"
+                        params={[
+                            {
+                                name: 'invoice.certificate_expiring',
+                                type: 'evento',
+                                description: (
+                                    <>
+                                        <C>issuer_id</C>, <C>cnpj</C>, <C>certificate_fingerprint</C>, <C>valid_until</C>, <C>days_left</C> e{' '}
+                                        <C>expired</C>. Sai uma vez em cada marco (30, 15, 7 e 1 dia antes, e no vencimento) por certificado; enviar
+                                        um certificado novo recomeça a contagem.
+                                    </>
+                                ),
+                            },
+                        ]}
+                    />
                 </Section>
 
                 <Section id="verificar-assinatura" title="Verificar a assinatura">
