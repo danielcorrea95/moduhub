@@ -77,12 +77,14 @@ class DocumentRepository implements DocumentRepositoryContract
             return null;
         }
 
+        // Página pública: o visitante pode estar anônimo ou logado em outro workspace, então nenhuma das
+        // relações passa pelo scope. O documento já foi escolhido pelo id; elas só seguem a chave dele.
         return Document::query()
             ->withoutGlobalScope(TenantScope::class)
             ->with([
                 'tenant',
-                'signers' => fn ($q) => $q->orderBy('order'),
-                'events' => fn ($q) => $q->orderByDesc('created_at')->limit(100),
+                'signers' => fn ($q) => $q->withoutGlobalScope(TenantScope::class)->orderBy('order'),
+                'events' => fn ($q) => $q->withoutGlobalScope(TenantScope::class)->orderByDesc('created_at')->limit(100),
             ])
             ->whereRaw('UPPER(RIGHT(id, 12)) = ?', [$normalized])
             ->first();

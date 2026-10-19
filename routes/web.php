@@ -16,6 +16,7 @@ use App\Modules\Invoices\Http\Controllers\MunicipalityController as InvoicesMuni
 use App\Modules\Invoices\Http\Controllers\ReceivedInvoiceController as InvoicesReceivedController;
 use App\Modules\Signatures\Http\Controllers\DocumentController as SignaturesDocumentController;
 use App\Modules\Signatures\Http\Controllers\PublicSignController as SignaturesPublicController;
+use App\Modules\Signatures\Http\Middleware\EnterSignerTenant;
 use App\Modules\Signatures\Http\Controllers\SignerController as SignaturesSignerController;
 use App\Modules\Signatures\Http\Controllers\VerificationController as SignaturesVerificationController;
 use Illuminate\Support\Facades\Route;
@@ -33,7 +34,7 @@ Route::prefix('v')->name('verify.')->group(function () {
     Route::get('/{short}/download', [SignaturesVerificationController::class, 'download'])->name('download');
 });
 
-Route::prefix('sign')->name('public-sign.')->group(function () {
+Route::prefix('sign')->name('public-sign.')->middleware(EnterSignerTenant::class)->group(function () {
     Route::get('/{token}', [SignaturesPublicController::class, 'show'])->name('show');
     Route::get('/{token}/pdf', [SignaturesPublicController::class, 'pdf'])->name('pdf');
     Route::post('/{token}/code', [SignaturesPublicController::class, 'sendCode'])->name('send-code');

@@ -73,7 +73,10 @@ app/Modules/<ModuleName>/
 
 - Rotas de painel (web): `App\Http\Middleware\SetCurrentTenantFromSession` resolve o tenant via session.
 - Rotas de API (`/api/v1/*`): `api.key` middleware resolve o tenant via `Authorization: Bearer mdhb_live_...`.
-- Rotas públicas (ex.: `/invitations/{token}`, página pública de assinatura): resolvem o contexto pelo token e **não** devem depender do scope global — use `withoutTenantScope()`.
+- Rotas públicas (ex.: `/invitations/{token}`, página pública de assinatura): resolvem o contexto pelo token e **não** devem depender do scope global — use `withoutTenantScope()`, ou entre no tenant do registro (como faz `EnterSignerTenant` em `/sign/{token}`). Lembre que o visitante pode estar logado em **outro** workspace.
+- O `TenantScope` é **fechado**: sem tenant no contexto, a consulta lança `MissingTenantContext` em vez de trazer todos os workspaces.
+- Jobs e comandos que trabalham para um tenant usam `app(CurrentTenant::class)->run($tenant, fn () => ...)`. Serviços que recebem `Tenant $tenant` como argumento também. `run()` recusa trocar para outro tenant quando já há um no contexto.
+- Jobs despachados dentro de um tenant levam o `tenant_id` no payload e rodam nele no worker (`App\Tenancy\QueueTenancy`). Despachado sem contexto, roda sem contexto.
 
 ## Testes (quando houver)
 

@@ -10,6 +10,7 @@ use App\Modules\Signatures\Mail\DocumentCompletedMail;
 use App\Modules\Signatures\Models\Document;
 use App\Modules\Signatures\Models\DocumentEvent;
 use App\Modules\Signatures\Models\DocumentSigner;
+use App\Tenancy\CurrentTenant;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Mail\Mailables\Attachment;
@@ -18,6 +19,7 @@ use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Inertia\Testing\AssertableInertia as Assert;
 use Tests\Support\CreatesPkcs12;
 use Tests\TestCase;
 
@@ -79,6 +81,29 @@ class PlatformSealTest extends TestCase
             ->where('type', DocumentEvent::TYPE_FINALIZED)
             ->sole();
         $this->assertTrue($finalized->data['sealed_with_icp']);
+    }
+
+    public function test_signer_logged_into_another_workspace_signs_inside_the_document_workspace(): void
+    {
+        [$document, $first, $second] = $this->sentDocumentWithTwoSigners();
+        $outsider = User::factory()->create();
+        $otherTenant = Tenant::create(['name' => 'Outra', 'slug' => 'outra-'.Str::random(4), 'status' => 'active']);
+        $otherTenant->users()->attach($outsider, ['role' => 'owner']);
+
+        // A sessão do visitante põe o workspace dele no contexto; a rota pública troca para o do documento.
+        $this->actingAs($outsider)->get(route('public-sign.show', $first->token))->assertOk();
+        $this->assertSame($this->tenant->getKey(), app(CurrentTenant::class)->id());
+
+        $this->actingAs($outsider);
+        $this->sign($first);
+        $this->sign($second);
+        $this->assertSame(Document::STATUS_COMPLETED, $document->fresh()->status);
+
+        // Na verificação pública o mesmo visitante vê os signatários do documento, não os do workspace dele.
+        $this->actingAs($outsider)
+            ->get(route('verify.show', substr($document->getKey(), -12)))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page->has('signers', 2));
     }
 
     public function test_without_certificate_password_the_document_completes_unsealed(): void

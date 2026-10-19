@@ -33,6 +33,7 @@ use App\Platform\Services\WebhookService;
 use App\Policies\ApiKeyPolicy;
 use App\Policies\WebhookEndpointPolicy;
 use App\Tenancy\CurrentTenant;
+use App\Tenancy\QueueTenancy;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
@@ -62,12 +63,16 @@ class AppServiceProvider extends ServiceProvider
 
     public function register(): void
     {
-        $this->app->singleton(CurrentTenant::class);
+        // Scoped, e não singleton: o Laravel zera a instância entre jobs da fila e entre requests no Octane,
+        // então o tenant de um job nunca sobra para o próximo no mesmo worker.
+        $this->app->scoped(CurrentTenant::class);
     }
 
     public function boot(): void
     {
         Vite::prefetch(concurrency: 3);
+
+        QueueTenancy::register();
 
         Gate::policy(ApiKey::class, ApiKeyPolicy::class);
         Gate::policy(WebhookEndpoint::class, WebhookEndpointPolicy::class);

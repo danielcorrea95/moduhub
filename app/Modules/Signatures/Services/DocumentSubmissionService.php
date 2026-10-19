@@ -8,6 +8,7 @@ use App\Modules\Signatures\Contracts\DocumentServiceContract;
 use App\Modules\Signatures\Contracts\DocumentSubmissionServiceContract;
 use App\Modules\Signatures\Contracts\SignerServiceContract;
 use App\Modules\Signatures\Models\Document;
+use App\Tenancy\CurrentTenant;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -20,6 +21,11 @@ class DocumentSubmissionService implements DocumentSubmissionServiceContract
     ) {}
 
     public function submit(Tenant $tenant, ?User $actor, UploadedFile $pdf, array $attrs, array $signers, bool $send): Document
+    {
+        return app(CurrentTenant::class)->run($tenant, fn () => $this->submitWithinTenant($tenant, $actor, $pdf, $attrs, $signers, $send));
+    }
+
+    protected function submitWithinTenant(Tenant $tenant, ?User $actor, UploadedFile $pdf, array $attrs, array $signers, bool $send): Document
     {
         $storedPaths = [];
 

@@ -20,7 +20,8 @@ class InvoiceQuotaService
 
     public function usage(Tenant $tenant): InvoiceUsage
     {
-        $subscription = $tenant->subscription()->with('plan.modules')->first();
+        // A relação já filtra pelo tenant recebido; o scope não acrescenta nada e exigiria contexto.
+        $subscription = $tenant->subscription()->withoutTenantScope()->with('plan.modules')->first();
         [$start, $end] = $this->period($subscription);
 
         $module = $subscription?->plan?->modules->firstWhere('key', Module::INVOICES);

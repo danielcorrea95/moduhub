@@ -19,6 +19,7 @@ use App\Modules\Invoices\Services\Nfse\XmlSigner;
 use App\Modules\Invoices\Services\Sefin\SefinResponse;
 use App\Modules\Invoices\Services\Sefin\SefinUnavailableException;
 use App\Platform\Contracts\WebhookDispatcherContract;
+use App\Tenancy\CurrentTenant;
 use DOMDocument;
 use DOMElement;
 use Illuminate\Support\Carbon;
@@ -78,6 +79,13 @@ class InvoiceService implements InvoiceServiceContract
 
     /** @param  array<string, mixed>  $substitution  colunas do grupo subst quando a nota substitui outra */
     protected function createAndTransmit(Tenant $tenant, ?User $creator, array $data, array $substitution = []): Invoice
+    {
+        // Emissão também roda fora de request (API em lote, jobs): tudo daqui em diante vale para este tenant.
+        return app(CurrentTenant::class)->run($tenant, fn () => $this->createAndTransmitWithinTenant($tenant, $creator, $data, $substitution));
+    }
+
+    /** @param  array<string, mixed>  $substitution */
+    protected function createAndTransmitWithinTenant(Tenant $tenant, ?User $creator, array $data, array $substitution): Invoice
     {
         $issuer = $this->readyIssuer($tenant);
         $data = $this->withIssuerDefaults($data, $issuer);
