@@ -31,7 +31,6 @@ class SignaturesApiTest extends TestCase
     {
         parent::setUp();
 
-        Storage::fake('documents');
         Mail::fake();
         Queue::fake();
 

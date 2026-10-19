@@ -2,6 +2,7 @@
 
 namespace App\Modules\Invoices\Models;
 
+use App\Modules\Invoices\Models\Concerns\ArchivesXml;
 use App\Tenancy\BelongsToTenant;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Model;
@@ -12,7 +13,7 @@ use Illuminate\Database\Eloquent\Model;
  */
 class ReceivedInvoice extends Model
 {
-    use BelongsToTenant, HasUlids;
+    use ArchivesXml, BelongsToTenant, HasUlids;
 
     public const ROLE_TAKER = 'taker';
 
@@ -64,7 +65,7 @@ class ReceivedInvoice extends Model
         'nfse_xml',
     ];
 
-    protected $hidden = ['nfse_xml'];
+    protected $hidden = ['nfse_xml_path'];
 
     protected $casts = [
         'competence_date' => 'date',
@@ -77,6 +78,11 @@ class ReceivedInvoice extends Model
     public function isIssued(): bool
     {
         return $this->status === self::STATUS_ISSUED;
+    }
+
+    protected function archivedXml(): array
+    {
+        return ['nfse_xml' => 'nfse_xml_path'];
     }
 
     public function isManifested(): bool

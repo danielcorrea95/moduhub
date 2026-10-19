@@ -2,6 +2,7 @@
 
 namespace App\Modules\Invoices\Models;
 
+use App\Modules\Invoices\Models\Concerns\ArchivesXml;
 use App\Tenancy\BelongsToTenant;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Model;
@@ -11,7 +12,7 @@ use Illuminate\Database\Eloquent\Model;
  */
 class DistributedDocument extends Model
 {
-    use BelongsToTenant, HasUlids;
+    use ArchivesXml, BelongsToTenant, HasUlids;
 
     public const TYPE_NFSE = 'NFSE';
 
@@ -31,7 +32,7 @@ class DistributedDocument extends Model
         'generated_at',
     ];
 
-    protected $hidden = ['xml'];
+    protected $hidden = ['xml_path'];
 
     protected $casts = [
         'nsu' => 'integer',
@@ -41,5 +42,10 @@ class DistributedDocument extends Model
     public function isEvent(): bool
     {
         return $this->document_type === self::TYPE_EVENT;
+    }
+
+    protected function archivedXml(): array
+    {
+        return ['xml' => 'xml_path'];
     }
 }

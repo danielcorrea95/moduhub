@@ -44,26 +44,24 @@ class PlatformSealService
             return false;
         }
 
-        $tempAbsolute = null;
+        $scratch = new LocalScratch();
 
         try {
             $cert = $this->certificate();
-            $relative = $this->composer->buildWorkingPdf($document, $cert);
-            $absolute = Storage::disk($document->file_disk)->path($relative);
-            $tempAbsolute = $absolute.'.seal.tmp';
+            $working = $scratch->create();
+            $sealed = $scratch->create();
 
-            $this->signer->signWithPkcs12($absolute, $tempAbsolute, $cert, self::REASON);
+            $this->composer->renderWorkingPdf($document, $working, $scratch, $cert);
+            $this->signer->signWithPkcs12($working, $sealed, $cert, self::REASON);
 
-            if (! is_file($tempAbsolute) || filesize($tempAbsolute) < 1024) {
+            clearstatcache(true, $sealed);
+            if (filesize($sealed) < 1024) {
                 throw new RuntimeException('O PDF selado saiu vazio.');
             }
 
-            rename($tempAbsolute, $absolute);
+            $relative = $this->composer->workingPathFor($document);
+            $scratch->upload($sealed, Storage::disk($document->file_disk), $relative);
         } catch (Throwable $e) {
-            if ($tempAbsolute !== null) {
-                @unlink($tempAbsolute);
-            }
-
             Log::critical('Documento concluído sem o selo ICP-Brasil da plataforma', [
                 'document_id' => $document->getKey(),
                 'error' => $e->getMessage(),
@@ -72,6 +70,8 @@ class PlatformSealService
             $this->buildUnsealed($document);
 
             return false;
+        } finally {
+            $scratch->cleanup();
         }
 
         $document->forceFill([

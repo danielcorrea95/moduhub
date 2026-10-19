@@ -64,6 +64,20 @@ services:
                 - ping
             retries: 3
             timeout: 5s
+    # S3 local para testar FILE_STORAGE_DRIVER=s3 sem AWS (a imagem comunitária do MinIO saiu do Docker Hub).
+    # Sem identidades configuradas o gateway aceita qualquer chave: só para dev. Ver docs/runbooks/armazenamento.md.
+    s3:
+        image: 'chrislusf/seaweedfs:latest'
+        ports:
+            - '${FORWARD_S3_PORT:-8333}:8333'
+        environment:
+            # Chave de dev para aceitar o cabeçalho SSE (ServerSideEncryption: AES256) que a app manda, como faz a AWS.
+            WEED_S3_SSE_KEY: 'ZGV2LWtleS1zZWF3ZWVkZnMtc3NlLXMzLTMyYnl0ZXM='
+        volumes:
+            - 'sail-s3:/data'
+        networks:
+            - sail
+        command: 'server -dir=/data -s3 -s3.port=8333'
     mailpit:
         image: 'axllent/mailpit:latest'
         ports:
@@ -78,4 +92,6 @@ volumes:
     sail-mysql:
         driver: local
     sail-redis:
+        driver: local
+    sail-s3:
         driver: local

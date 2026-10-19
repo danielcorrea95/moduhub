@@ -87,6 +87,16 @@ Levantamento feito em 2026-10-15. **Decisão: adiar.** Com ~100 SMS/mês não co
 
 Impacto quando entrar: desbloqueia `auth_method='sms'` e `email_and_sms` em Signatures, e vira capability reusável para outros módulos (2FA de login, notificações).
 
+### NF-e (modelo 55) e NFC-e (modelo 65)
+Conversa de 2026-10-19. **Decisão: implementar futuramente.** Hoje o módulo Invoices só cobre NFS-e pelo padrão nacional (emissão na Sefin e recebidas pelo ADN). O foco continua em prestadores de serviço, o mesmo público de Signatures. NF-e entra quando aparecer demanda de clientes que vendem produto. NFC-e é mercado de varejo/PDV e só entra se a Moduhub decidir atender esse público.
+
+- **NF-e**: venda de produto B2B, comércio e indústria. Emitida na Sefaz de cada UF (SOAP, leiaute 4.00; alguns estados delegam à SVRS/SVAN), com contingência (SVC-AN/SVC-RS, EPEC). Além da autorização: cancelamento, inutilização de numeração, carta de correção (CC-e), manifestação do destinatário e distribuição DF-e. DANFE em PDF
+- **NFC-e**: tudo da NF-e e mais o CSC (token por UF), contingência offline e DANFCE com QR Code
+- **Parte fiscal é o maior custo**: por item, NCM, CFOP, CST/CSOSN, ICMS (ST, DIFAL, partilha), IPI, PIS/COFINS e os grupos IBS/CBS da reforma. Depende de cadastro fiscal de produto correto no cliente, e o suporte tende a virar consultoria fiscal
+- **Reaproveitamento**: certificado A1 do emitente, guarda de credenciais mTLS em RAM, `Issuer`, cota por plano, webhooks e fila de e-mail. Avaliar `nfephp-org/sped-nfe` para XML, assinatura e comunicação com a Sefaz
+- **Fora de escopo**: CT-e e MDF-e (transporte de carga)
+- **Antes de começar**: levantar escopo, prazo e preços praticados no mercado para NF-e
+
 ---
 
 ## 🚀 Próximos módulos

@@ -38,17 +38,38 @@ class PdfComposer
     /**
      * Composes a "working PDF" from the original + footer on every page
      * + a final signatures report listing every signer's current status.
-     * With $seal, the report announces the platform seal that is applied right after.
      *
      * Returns the storage path (relative, on the documents disk) of the generated file.
      */
-    public function buildWorkingPdf(Document $document, ?IcpCertificate $seal = null): string
+    public function buildWorkingPdf(Document $document): string
     {
         $disk = Storage::disk($document->file_disk);
-        $sourcePath = $disk->path($document->file_path);
+        $scratch = new LocalScratch();
+
+        try {
+            $output = $scratch->create();
+            $this->renderWorkingPdf($document, $output, $scratch);
+
+            $outputRelative = $this->workingPathFor($document);
+            $scratch->upload($output, $disk, $outputRelative);
+
+            return $outputRelative;
+        } finally {
+            $scratch->cleanup();
+        }
+    }
+
+    /**
+     * Same composition as buildWorkingPdf(), written to a local file and not uploaded,
+     * for callers that still need to process it (the platform seal).
+     * With $seal, the report announces the platform seal that is applied right after.
+     */
+    public function renderWorkingPdf(Document $document, string $outputAbsolute, LocalScratch $scratch, ?IcpCertificate $seal = null): void
+    {
+        $source = $scratch->download(Storage::disk($document->file_disk), $document->file_path);
 
         $pdf = $this->makePdf();
-        $pageCount = $pdf->setSourceFile($sourcePath);
+        $pageCount = $pdf->setSourceFile($source);
 
         for ($pageNumber = 1; $pageNumber <= $pageCount; $pageNumber++) {
             $templateId = $pdf->importPage($pageNumber);
@@ -63,13 +84,7 @@ class PdfComposer
 
         $this->drawReport($pdf, $document, $seal !== null);
 
-        $outputRelative = $this->workingPathFor($document);
-        $outputAbsolute = $disk->path($outputRelative);
-
-        $this->ensureDirectoryExists(dirname($outputAbsolute));
         $pdf->Output($outputAbsolute, 'F');
-
-        return $outputRelative;
     }
 
     protected function makePdf(): Fpdi
@@ -411,7 +426,7 @@ class PdfComposer
         }
 
         $imageArea = ['x' => $x + 5, 'y' => $y + 9.5, 'w' => $width - 10, 'h' => $height - 19];
-        $image = $this->signatureImageAbsolutePath($signer);
+        $image = $this->signatureImage($signer);
 
         if ($image !== null) {
             $pdf->Image($image, $imageArea['x'], $imageArea['y'], $imageArea['w'], $imageArea['h'], 'PNG', '', '', true, 300, '', false, false, 0, 'CM');
@@ -735,7 +750,8 @@ class PdfComposer
         return preg_replace('/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/', '$1.$2.$3/$4-$5', $digits) ?? $digits;
     }
 
-    protected function signatureImageAbsolutePath(DocumentSigner $signer): ?string
+    /** A imagem em memória, no formato '@<bytes>' que o TCPDF aceita no lugar de um caminho. */
+    protected function signatureImage(DocumentSigner $signer): ?string
     {
         if (empty($signer->signature_image_path)) {
             return null;
@@ -746,10 +762,10 @@ class PdfComposer
             return null;
         }
 
-        return $disk->path($signer->signature_image_path);
+        return '@' . $disk->get($signer->signature_image_path);
     }
 
-    protected function workingPathFor(Document $document): string
+    public function workingPathFor(Document $document): string
     {
         $base = pathinfo($document->file_path, PATHINFO_DIRNAME);
         return $base . '/working_' . $document->getKey() . '.pdf';
@@ -768,12 +784,5 @@ class PdfComposer
     protected function truncate(string $value, int $max): string
     {
         return mb_strlen($value) > $max ? mb_substr($value, 0, $max - 1) . '…' : $value;
-    }
-
-    protected function ensureDirectoryExists(string $path): void
-    {
-        if (! is_dir($path)) {
-            mkdir($path, 0775, true);
-        }
     }
 }

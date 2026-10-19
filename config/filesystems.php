@@ -1,5 +1,42 @@
 <?php
 
+/*
+ * Discos dos arquivos dos clientes. Com FILE_STORAGE_DRIVER=s3 vão para o bucket AWS_BUCKET,
+ * cada um sob o seu prefixo, privados e cifrados no servidor. Em dev ficam em storage/app/private.
+ * Operação: docs/runbooks/armazenamento.md.
+ */
+$privateDisk = function (string $prefix): array {
+    if (env('FILE_STORAGE_DRIVER', 'local') !== 's3') {
+        return [
+            'driver' => 'local',
+            'root' => storage_path("app/private/{$prefix}"),
+            'visibility' => 'private',
+            'throw' => true,
+        ];
+    }
+
+    $kmsKey = env('AWS_KMS_KEY_ID');
+
+    return [
+        'driver' => 's3',
+        'key' => env('AWS_ACCESS_KEY_ID'),
+        'secret' => env('AWS_SECRET_ACCESS_KEY'),
+        'region' => env('AWS_DEFAULT_REGION'),
+        'bucket' => env('AWS_BUCKET'),
+        'endpoint' => env('AWS_ENDPOINT'),
+        'use_path_style_endpoint' => env('AWS_USE_PATH_STYLE_ENDPOINT', false),
+        'root' => $prefix,
+        'visibility' => 'private',
+        // Sem ACL por objeto: buckets novos vêm com "Object Ownership = Bucket owner enforced" e recusam ACL.
+        'retain_visibility' => false,
+        'options' => $kmsKey
+            ? ['ServerSideEncryption' => 'aws:kms', 'SSEKMSKeyId' => $kmsKey]
+            : ['ServerSideEncryption' => 'AES256'],
+        'throw' => true,
+        'report' => false,
+    ];
+};
+
 return [
 
     /*
@@ -60,12 +97,11 @@ return [
             'report' => false,
         ],
 
-        'documents' => [
-            'driver' => env('DOCUMENTS_DISK_DRIVER', 'local'),
-            'root' => storage_path('app/private/documents'),
-            'visibility' => 'private',
-            'throw' => true,
-        ],
+        // PDFs de assinatura (originais, de trabalho, finais selados) e imagens das assinaturas.
+        'documents' => $privateDisk('documents'),
+
+        // XMLs fiscais da NFS-e (DPS, nota autorizada, eventos, distribuição do ADN). Guarda legal de 5 anos.
+        'fiscal' => $privateDisk('fiscal'),
 
     ],
 

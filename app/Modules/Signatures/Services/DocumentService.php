@@ -34,14 +34,14 @@ class DocumentService implements DocumentServiceContract
         array $attrs,
     ): Document {
         return DB::transaction(function () use ($tenant, $user, $pdf, $attrs) {
-            $disk = Storage::disk('documents');
-            $relativePath = $tenant->getKey() . '/' . now()->format('Y/m') . '/' . uniqid('src_', true) . '.pdf';
-            $disk->put($relativePath, $pdf->get());
+            // O upload já está num arquivo local: mede antes de mandar para o disco (que pode ser o S3).
+            $localPath = $pdf->getRealPath();
+            $pageCount = $this->inspector->pageCount($localPath);
+            $hash = hash_file('sha256', $localPath);
+            $size = filesize($localPath);
 
-            $absolutePath = $disk->path($relativePath);
-            $pageCount = $this->inspector->pageCount($absolutePath);
-            $hash = hash_file('sha256', $absolutePath);
-            $size = $disk->size($relativePath);
+            $relativePath = $tenant->getKey() . '/' . now()->format('Y/m') . '/' . uniqid('src_', true) . '.pdf';
+            (new LocalScratch())->upload($localPath, Storage::disk('documents'), $relativePath);
 
             $document = Document::create([
                 'tenant_id' => $tenant->getKey(),

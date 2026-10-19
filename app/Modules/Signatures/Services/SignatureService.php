@@ -240,9 +240,8 @@ class SignatureService implements SignatureServiceContract
         $fresh = $document->fresh();
         $sealed = $this->seal->finalize($fresh);
 
-        $workingAbs = Storage::disk($fresh->file_disk)->path($fresh->final_file_path);
         $fresh->forceFill([
-            'final_file_hash' => file_exists($workingAbs) ? hash_file('sha256', $workingAbs) : null,
+            'final_file_hash' => $this->hashStoredFile($fresh->file_disk, $fresh->final_file_path),
         ])->save();
 
         $this->documents->recordEvent(
@@ -349,6 +348,22 @@ class SignatureService implements SignatureServiceContract
         $disk->put($path, $binary);
 
         return $path;
+    }
+
+    /** SHA-256 lido em stream do disco, sem trazer o PDF inteiro para a memória. */
+    protected function hashStoredFile(string $disk, ?string $path): ?string
+    {
+        $storage = Storage::disk($disk);
+        if ($path === null || ! $storage->exists($path)) {
+            return null;
+        }
+
+        $stream = $storage->readStream($path);
+        $context = hash_init('sha256');
+        hash_update_stream($context, $stream);
+        fclose($stream);
+
+        return hash_final($context);
     }
 
     protected function signerSnapshot(DocumentSigner $signer): array

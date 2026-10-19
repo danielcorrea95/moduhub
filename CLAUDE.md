@@ -84,6 +84,13 @@ app/Modules/<ModuleName>/
 - A chave privada do cliente só é aberta por `IssuerCredentialsLoader::load($issuer, CertificateEvent::PURPOSE_*)`, que grava o uso na trilha `invoice_certificate_events`. Uso novo = finalidade nova em `CertificateEvent`, não um atalho que pule o `load()`.
 - Operação, vencimento e incidentes: `docs/runbooks/certificados.md`.
 
+## Arquivos (S3)
+
+- Arquivo de cliente vai para um dos discos privados: `documents` (PDFs e imagens de assinatura) ou `fiscal` (XMLs da NFS-e). `FILE_STORAGE_DRIVER=s3` manda os dois para o bucket. Nunca `storage_path()` nem disco `local` para dado de cliente.
+- Nada de `Storage::disk(...)->path()`: no S3 não existe caminho. Ferramenta que exige arquivo local (FPDI, TCPDF, openssl) usa `LocalScratch` (baixa, processa, sobe e limpa). O TCPDF aceita imagem em memória com `'@'.$bytes`.
+- XML fiscal novo vira atributo virtual com o trait `ArchivesXml` (coluna `*_path` no banco, conteúdo no disco `fiscal`), não coluna `longText`. XML fiscal nunca é apagado.
+- Operação, bucket, IAM e migração: `docs/runbooks/armazenamento.md`.
+
 ## Testes (quando houver)
 
 - Feature tests em `tests/Feature/<Module>/` — testam o fluxo HTTP → Service → DB.

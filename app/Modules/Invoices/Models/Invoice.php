@@ -3,6 +3,7 @@
 namespace App\Modules\Invoices\Models;
 
 use App\Models\User;
+use App\Modules\Invoices\Models\Concerns\ArchivesXml;
 use App\Tenancy\BelongsToTenant;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Model;
@@ -14,7 +15,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  */
 class Invoice extends Model
 {
-    use BelongsToTenant, HasUlids;
+    use ArchivesXml, BelongsToTenant, HasUlids;
 
     /** DPS enviada sem resposta conclusiva (falha de rede, Sefin fora do ar). Sincronizar resolve. */
     public const STATUS_PENDING = 'pending';
@@ -219,9 +220,9 @@ class Invoice extends Model
     ];
 
     protected $hidden = [
-        'dps_xml',
-        'nfse_xml',
-        'cancellation_xml',
+        'dps_xml_path',
+        'nfse_xml_path',
+        'cancellation_xml_path',
     ];
 
     protected $casts = [
@@ -321,6 +322,15 @@ class Invoice extends Model
 
     public function hasNfseXml(): bool
     {
-        return $this->nfse_xml !== null;
+        return $this->hasArchivedXml('nfse_xml');
+    }
+
+    protected function archivedXml(): array
+    {
+        return [
+            'dps_xml' => 'dps_xml_path',
+            'nfse_xml' => 'nfse_xml_path',
+            'cancellation_xml' => 'cancellation_xml_path',
+        ];
     }
 }
