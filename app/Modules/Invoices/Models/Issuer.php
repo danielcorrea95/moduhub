@@ -2,6 +2,7 @@
 
 namespace App\Modules\Invoices\Models;
 
+use App\Platform\Casts\CertificateEncrypted;
 use App\Tenancy\BelongsToTenant;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Model;
@@ -110,8 +111,8 @@ class Issuer extends Model
     ];
 
     protected $casts = [
-        'certificate_pfx' => 'encrypted',
-        'certificate_password' => 'encrypted',
+        'certificate_pfx' => CertificateEncrypted::class,
+        'certificate_password' => CertificateEncrypted::class,
         'simples_nacional' => 'integer',
         'simples_regime' => 'integer',
         'special_regime' => 'integer',

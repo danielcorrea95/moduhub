@@ -19,7 +19,7 @@ class IssuerCredentialsLoader
         $credentials = $pfx === false ? null : $this->fromPkcs12($pfx, (string) $issuer->certificate_password);
 
         if ($credentials === null) {
-            // O arquivo foi validado no envio; se não abre mais, a chave de criptografia do app mudou ou o dado corrompeu.
+            // O arquivo foi validado no envio; se não abre mais, a CERTIFICATES_ENCRYPTION_KEY mudou ou o dado corrompeu.
             throw ValidationException::withMessages([
                 'issuer' => 'Não foi possível abrir o certificado do emitente. Envie o arquivo .pfx novamente.',
             ]);

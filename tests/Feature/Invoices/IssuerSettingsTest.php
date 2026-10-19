@@ -6,8 +6,11 @@ use App\Models\Module;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Modules\Invoices\Models\Issuer;
+use App\Platform\Security\CertificateEncrypter;
+use Illuminate\Contracts\Encryption\DecryptException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Inertia\Testing\AssertableInertia as Assert;
@@ -174,6 +177,20 @@ class IssuerSettingsTest extends TestCase
         $raw = DB::table('invoice_issuers')->where('id', $issuer->getKey())->first();
         $this->assertStringNotContainsString(base64_encode($pfx), $raw->certificate_pfx);
         $this->assertStringNotContainsString(self::PKCS12_PASSWORD, $raw->certificate_password);
+
+        // A chave é a dos certificados, não a APP_KEY: vazar a APP_KEY não abre o .pfx nem a senha.
+        $this->assertSame(self::PKCS12_PASSWORD, app(CertificateEncrypter::class)->decrypt($raw->certificate_password));
+        $opensWithAppKey = function (string $payload): bool {
+            try {
+                Crypt::decryptString($payload);
+
+                return true;
+            } catch (DecryptException) {
+                return false;
+            }
+        };
+        $this->assertFalse($opensWithAppKey($raw->certificate_pfx));
+        $this->assertFalse($opensWithAppKey($raw->certificate_password));
 
         $this->actingAs($this->owner)
             ->get(route('invoices.issuer.edit'))

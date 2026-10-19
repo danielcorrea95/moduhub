@@ -29,6 +29,7 @@
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="INVOICES_SEFIN_DRIVER" value="fake"/>
         <env name="SIGNATURES_PLATFORM_CERT_PASSWORD" value=""/>
+        <env name="CERTIFICATES_ENCRYPTION_KEY" value="base64:dGVzdGVzLWNoYXZlLWRvcy1jZXJ0aWZpY2Fkb3MtMzI="/>
         <env name="SESSION_DRIVER" value="array"/>
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
