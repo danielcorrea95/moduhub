@@ -3,11 +3,21 @@
 namespace App\Modules\Invoices\Services\Nfse;
 
 use App\Modules\Invoices\Models\Issuer;
+use App\Modules\Invoices\Services\CertificateAuditService;
 use Illuminate\Validation\ValidationException;
 
 class IssuerCredentialsLoader
 {
-    public function load(Issuer $issuer): IssuerCredentials
+    public function __construct(protected CertificateAuditService $audit) {}
+
+    /**
+     * Abre a chave privada do emitente. A finalidade é obrigatória e fica na trilha de auditoria:
+     * não existe caminho que use o certificado do cliente sem deixar registro.
+     *
+     * @param  string  $purpose  uma das CertificateEvent::PURPOSE_*
+     * @param  array<string, mixed>  $data  referência do que vai ser assinado ou consultado
+     */
+    public function load(Issuer $issuer, string $purpose, array $data = []): IssuerCredentials
     {
         if (! $issuer->hasCertificate() || $issuer->certificate_pfx === null) {
             throw ValidationException::withMessages([
@@ -24,6 +34,8 @@ class IssuerCredentialsLoader
                 'issuer' => 'Não foi possível abrir o certificado do emitente. Envie o arquivo .pfx novamente.',
             ]);
         }
+
+        $this->audit->used($issuer, $purpose, $data);
 
         return $credentials;
     }

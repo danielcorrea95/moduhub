@@ -126,6 +126,7 @@ class Issuer extends Model
         'certificate_valid_from' => 'datetime',
         'certificate_valid_until' => 'datetime',
         'certificate_uploaded_at' => 'datetime',
+        'certificate_expiry_notice_days' => 'integer',
     ];
 
     /** O contador já definiu a classificação padrão do IBS/CBS deste emitente. */

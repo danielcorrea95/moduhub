@@ -3,6 +3,7 @@
 namespace App\Modules\Invoices\Services\Adn;
 
 use App\Modules\Invoices\Contracts\DfeDistributionContract;
+use App\Modules\Invoices\Models\CertificateEvent;
 use App\Modules\Invoices\Models\Issuer;
 use App\Modules\Invoices\Services\Sefin\IssuerHttp;
 use Carbon\CarbonImmutable;
@@ -24,6 +25,8 @@ class AdnDistributionClient implements DfeDistributionContract
         try {
             $response = $this->http->send(
                 $issuer,
+                CertificateEvent::PURPOSE_ADN_AUTHENTICATION,
+                'sincronização de documentos',
                 $baseUrl,
                 (int) config('invoices.timeout', 30),
                 fn (PendingRequest $http) => $http->get("/DFe/{$afterNsu}", ['lote' => 'true']),

@@ -3,6 +3,7 @@
 namespace App\Modules\Invoices\Services\Adn;
 
 use App\Modules\Invoices\Contracts\MunicipalParametersContract;
+use App\Modules\Invoices\Models\CertificateEvent;
 use App\Modules\Invoices\Models\Issuer;
 use App\Modules\Invoices\Services\Sefin\IssuerHttp;
 use Carbon\CarbonInterface;
@@ -28,6 +29,8 @@ class AdnParametersClient implements MunicipalParametersContract
         try {
             $response = $this->http->send(
                 $issuer,
+                CertificateEvent::PURPOSE_ADN_AUTHENTICATION,
+                'consulta da alíquota do serviço',
                 $baseUrl,
                 (int) config('invoices.adn_timeout', 8),
                 fn (PendingRequest $http) => $http->get("/parametrizacao/{$cityCode}/{$code}/{$competence->format('Y-m-d')}/aliquota"),

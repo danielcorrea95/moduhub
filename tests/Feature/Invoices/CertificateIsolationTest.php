@@ -4,6 +4,7 @@ namespace Tests\Feature\Invoices;
 
 use App\Modules\Invoices\Contracts\InvoiceServiceContract;
 use App\Modules\Invoices\Models\Issuer;
+use App\Modules\Invoices\Services\Nfse\IssuerCredentials;
 use App\Modules\Invoices\Services\Nfse\IssuerCredentialsLoader;
 use App\Modules\Signatures\Services\IcpCertificateService;
 use App\Tenancy\CurrentTenant;
@@ -30,11 +31,10 @@ class CertificateIsolationTest extends TestCase
 
         $invoice = app(InvoiceServiceContract::class)->issue($second, null, $this->normalizedPayload());
 
-        $credentials = app(IssuerCredentialsLoader::class);
         $this->assertSame($second->getKey(), $invoice->tenant_id);
         $this->assertSame($secondIssuer->getKey(), $invoice->issuer_id);
-        $this->assertStringContainsString($credentials->load($secondIssuer)->certificateBase64(), $invoice->dps_xml);
-        $this->assertStringNotContainsString($credentials->load($firstIssuer)->certificateBase64(), $invoice->dps_xml);
+        $this->assertStringContainsString($this->certificateOf($secondIssuer), $invoice->dps_xml);
+        $this->assertStringNotContainsString($this->certificateOf($firstIssuer), $invoice->dps_xml);
     }
 
     public function test_tenant_without_certificate_cannot_issue_even_if_another_tenant_has_one(): void
@@ -69,6 +69,19 @@ class CertificateIsolationTest extends TestCase
         $this->assertSame($second->getKey(), $other->tenant_id);
     }
 
+    /** Lê o certificado guardado sem passar pelo load(), que registraria um uso da chave na auditoria. */
+    private function credentialsOf(Issuer $issuer): IssuerCredentials
+    {
+        $issuer = Issuer::withoutGlobalScopes()->findOrFail($issuer->getKey());
+
+        return app(IssuerCredentialsLoader::class)->fromPkcs12(base64_decode($issuer->certificate_pfx), $issuer->certificate_password);
+    }
+
+    private function certificateOf(Issuer $issuer): string
+    {
+        return $this->credentialsOf($issuer)->certificateBase64();
+    }
+
     /** O serviço recebe o payload depois do FormRequest, já sem máscaras. */
     private function normalizedPayload(array $overrides = []): array
     {
@@ -95,7 +108,7 @@ class CertificateIsolationTest extends TestCase
 
         [$tenant] = $this->makeInvoicesTenant();
         $issuer = $this->configureIssuer($tenant);
-        $credentials = app(IssuerCredentialsLoader::class)->load(Issuer::withoutGlobalScopes()->findOrFail($issuer->getKey()));
+        $credentials = $this->credentialsOf($issuer);
         $certificate = app(IcpCertificateService::class)->parse($this->makePkcs12('ACME LTDA:'.self::ISSUER_CNPJ), self::PKCS12_PASSWORD);
 
         $this->assertStringNotContainsString('PRIVATE KEY', print_r($credentials, true));

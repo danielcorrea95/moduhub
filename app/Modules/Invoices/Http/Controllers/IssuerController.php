@@ -3,10 +3,12 @@
 namespace App\Modules\Invoices\Http\Controllers;
 
 use App\Http\Controllers\Controller;
+use App\Modules\Invoices\Contracts\CertificateEventRepositoryContract;
 use App\Modules\Invoices\Contracts\IssuerRepositoryContract;
 use App\Modules\Invoices\Contracts\IssuerServiceContract;
 use App\Modules\Invoices\Http\Requests\UpdateIssuerRequest;
 use App\Modules\Invoices\Http\Requests\UploadIssuerCertificateRequest;
+use App\Modules\Invoices\Http\Resources\CertificateEventResource;
 use App\Modules\Invoices\Http\Resources\IssuerResource;
 use App\Modules\Invoices\Models\Issuer;
 use App\Tenancy\CurrentTenant;
@@ -20,6 +22,7 @@ class IssuerController extends Controller
     public function __construct(
         protected IssuerRepositoryContract $issuers,
         protected IssuerServiceContract $service,
+        protected CertificateEventRepositoryContract $certificateEvents,
     ) {}
 
     public function edit(Request $request): Response
@@ -30,6 +33,9 @@ class IssuerController extends Controller
 
         return Inertia::render('Invoices/Issuer', [
             'issuer' => $issuer ? IssuerResource::make($issuer)->resolve() : null,
+            'certificateEvents' => $issuer
+                ? CertificateEventResource::collection($this->certificateEvents->recentForIssuer($issuer, 50))->resolve()
+                : [],
             'canManage' => $request->user()->can('manage', Issuer::class),
             'options' => [
                 'simples_nacional' => Issuer::SIMPLES_NACIONAL_LABELS,

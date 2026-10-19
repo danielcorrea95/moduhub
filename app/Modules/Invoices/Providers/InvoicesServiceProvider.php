@@ -4,6 +4,7 @@ namespace App\Modules\Invoices\Providers;
 
 use App\Modules\Invoices\Console\SyncDistributedDocuments;
 use App\Modules\Invoices\Console\SyncMunicipalAgreements;
+use App\Modules\Invoices\Contracts\CertificateEventRepositoryContract;
 use App\Modules\Invoices\Contracts\DfeDistributionContract;
 use App\Modules\Invoices\Contracts\DistributedDocumentRepositoryContract;
 use App\Modules\Invoices\Contracts\InvoiceRepositoryContract;
@@ -21,6 +22,7 @@ use App\Modules\Invoices\Models\ReceivedInvoice;
 use App\Modules\Invoices\Policies\InvoicePolicy;
 use App\Modules\Invoices\Policies\IssuerPolicy;
 use App\Modules\Invoices\Policies\ReceivedInvoicePolicy;
+use App\Modules\Invoices\Repositories\CertificateEventRepository;
 use App\Modules\Invoices\Repositories\DistributedDocumentRepository;
 use App\Modules\Invoices\Repositories\InvoiceRepository;
 use App\Modules\Invoices\Repositories\IssuerRepository;
@@ -50,6 +52,7 @@ class InvoicesServiceProvider extends ServiceProvider
         MunicipalAgreementRepositoryContract::class => MunicipalAgreementRepository::class,
         ReceivedInvoiceRepositoryContract::class => ReceivedInvoiceRepository::class,
         DistributedDocumentRepositoryContract::class => DistributedDocumentRepository::class,
+        CertificateEventRepositoryContract::class => CertificateEventRepository::class,
     ];
 
     public function register(): void

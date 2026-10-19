@@ -4,6 +4,7 @@ namespace App\Modules\Invoices\Services;
 
 use App\Modules\Invoices\Contracts\IssuerRepositoryContract;
 use App\Modules\Invoices\Contracts\SefinClientContract;
+use App\Modules\Invoices\Models\CertificateEvent;
 use App\Modules\Invoices\Models\Invoice;
 use App\Modules\Invoices\Models\Issuer;
 use App\Modules\Invoices\Models\ReceivedInvoice;
@@ -91,7 +92,7 @@ class InvoiceEventService
 
     protected function register(Issuer $issuer, string $accessKey, string $event, string|int|null $reasonCode, ?string $reason, string $errorKey): void
     {
-        $credentials = $this->credentials->load($issuer);
+        $credentials = $this->credentials->load($issuer, CertificateEvent::PURPOSE_EVENT_SIGNATURE, ['access_key' => $accessKey, 'event' => $event]);
         $doc = $this->events->build($accessKey, $issuer, $event, $reasonCode, $reason);
         $this->signer->sign($this->signedElement($doc), $credentials);
         $this->schema->assertValid($doc, 'pedRegEvento_v1.01.xsd');

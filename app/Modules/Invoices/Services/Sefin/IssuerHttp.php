@@ -31,13 +31,17 @@ class IssuerHttp
     public function __construct(protected IssuerCredentialsLoader $credentials) {}
 
     /**
+     * @param  string  $purpose  CertificateEvent::PURPOSE_SEFIN_AUTHENTICATION ou PURPOSE_ADN_AUTHENTICATION
+     * @param  string  $operation  o que a chamada faz, para a trilha de auditoria (ex.: "emissão", "sincronização")
      * @param  callable(PendingRequest): Response  $send
      *
      * @throws ConnectionException
      */
-    public function send(Issuer $issuer, string $baseUrl, int $timeout, callable $send): Response
+    public function send(Issuer $issuer, string $purpose, string $operation, string $baseUrl, int $timeout, callable $send): Response
     {
-        return $this->session($this->credentials->load($issuer), $baseUrl, $timeout, $send);
+        $credentials = $this->credentials->load($issuer, $purpose, ['operation' => $operation]);
+
+        return $this->session($credentials, $baseUrl, $timeout, $send);
     }
 
     /**

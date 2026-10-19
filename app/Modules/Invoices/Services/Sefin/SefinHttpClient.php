@@ -3,6 +3,7 @@
 namespace App\Modules\Invoices\Services\Sefin;
 
 use App\Modules\Invoices\Contracts\SefinClientContract;
+use App\Modules\Invoices\Models\CertificateEvent;
 use App\Modules\Invoices\Models\Issuer;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\PendingRequest;
@@ -15,14 +16,14 @@ class SefinHttpClient implements SefinClientContract
 
     public function emit(Issuer $issuer, string $signedDpsXml): SefinResponse
     {
-        return $this->toResponse($this->call($issuer, fn (PendingRequest $http) => $http->post('/nfse', [
+        return $this->toResponse($this->call($issuer, 'emissão', fn (PendingRequest $http) => $http->post('/nfse', [
             'dpsXmlGZipB64' => $this->pack($signedDpsXml),
         ])), 'nfseXmlGZipB64');
     }
 
     public function findAccessKeyByDps(Issuer $issuer, string $dpsId): ?string
     {
-        $response = $this->call($issuer, fn (PendingRequest $http) => $http->get('/dps/'.$dpsId));
+        $response = $this->call($issuer, 'consulta da DPS', fn (PendingRequest $http) => $http->get('/dps/'.$dpsId));
 
         if ($response->status() === 404) {
             return null;
@@ -35,21 +36,21 @@ class SefinHttpClient implements SefinClientContract
 
     public function fetch(Issuer $issuer, string $accessKey): SefinResponse
     {
-        return $this->toResponse($this->call($issuer, fn (PendingRequest $http) => $http->get('/nfse/'.$accessKey)), 'nfseXmlGZipB64');
+        return $this->toResponse($this->call($issuer, 'consulta da NFS-e', fn (PendingRequest $http) => $http->get('/nfse/'.$accessKey)), 'nfseXmlGZipB64');
     }
 
     public function registerEvent(Issuer $issuer, string $accessKey, string $signedEventXml): SefinResponse
     {
-        return $this->toResponse($this->call($issuer, fn (PendingRequest $http) => $http->post('/nfse/'.$accessKey.'/eventos', [
+        return $this->toResponse($this->call($issuer, 'registro de evento', fn (PendingRequest $http) => $http->post('/nfse/'.$accessKey.'/eventos', [
             'pedidoRegistroEventoXmlGZipB64' => $this->pack($signedEventXml),
         ])), 'eventoXmlGZipB64');
     }
 
     /** @param  callable(PendingRequest): Response  $send */
-    protected function call(Issuer $issuer, callable $send): Response
+    protected function call(Issuer $issuer, string $operation, callable $send): Response
     {
         try {
-            $response = $this->http->send($issuer, $this->baseUrl($issuer), (int) config('invoices.timeout', 30), $send);
+            $response = $this->http->send($issuer, CertificateEvent::PURPOSE_SEFIN_AUTHENTICATION, $operation, $this->baseUrl($issuer), (int) config('invoices.timeout', 30), $send);
         } catch (ConnectionException $e) {
             throw new SefinUnavailableException('Sem resposta da Sefin Nacional: '.$e->getMessage(), previous: $e);
         }

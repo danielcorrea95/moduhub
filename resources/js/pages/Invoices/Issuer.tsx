@@ -21,8 +21,8 @@ import AppLayout from '@/layouts/app-layout';
 import { formatCnpj } from '@/lib/fiscal';
 import { cn, formatDate, formatDateTime } from '@/lib/utils';
 import { Head, Link, router, useForm } from '@inertiajs/react';
-import { BookOpen, Check, FileKey2, ShieldAlert, ShieldCheck, ShieldX, Upload } from 'lucide-react';
-import { useRef, type FormEvent } from 'react';
+import { BookOpen, Check, FileKey2, History, ShieldAlert, ShieldCheck, ShieldX, Upload } from 'lucide-react';
+import { useRef, useState, type FormEvent } from 'react';
 
 type Environment = 'restricted' | 'production';
 
@@ -65,10 +65,24 @@ interface IssuerData {
     certificate: IssuerCertificate | null;
 }
 
+interface CertificateEventData {
+    id: string;
+    type: 'uploaded' | 'replaced' | 'removed' | 'used' | 'expiry_notice';
+    type_label: string;
+    purpose: string | null;
+    purpose_label: string | null;
+    certificate_fingerprint: string | null;
+    actor: { type: 'user' | 'api_key' | 'system'; label: string | null };
+    ip_address: string | null;
+    data: Record<string, unknown> | null;
+    created_at: string;
+}
+
 type Options = Record<string, string> | string[];
 
 interface Props {
     issuer: IssuerData | null;
+    certificateEvents: CertificateEventData[];
     canManage: boolean;
     options: {
         simples_nacional: Options;
@@ -178,7 +192,71 @@ function CertificateStatus({ certificate }: { certificate: IssuerCertificate }) 
     );
 }
 
-export default function InvoicesIssuer({ issuer, canManage, options }: Props) {
+function eventDetail(event: CertificateEventData): string | null {
+    const data = event.data ?? {};
+    const parts: string[] = [];
+
+    if (typeof data.operation === 'string') parts.push(data.operation);
+    if (typeof data.external_id === 'string') parts.push(`pedido ${data.external_id}`);
+    if (typeof data.access_key === 'string') parts.push(`chave …${data.access_key.slice(-8)}`);
+    if (typeof data.days_left === 'number') parts.push(data.days_left <= 0 ? 'certificado vencido' : `faltavam ${data.days_left} dias`);
+    if (event.certificate_fingerprint && event.type !== 'used') parts.push(`impressão digital ${event.certificate_fingerprint.slice(0, 12)}…`);
+
+    return parts.length > 0 ? parts.join(' · ') : null;
+}
+
+const HISTORY_PREVIEW = 8;
+
+function CertificateHistory({ events }: { events: CertificateEventData[] }) {
+    const [expanded, setExpanded] = useState(false);
+    const visible = expanded ? events : events.slice(0, HISTORY_PREVIEW);
+
+    return (
+        <div className="flex flex-col gap-3">
+            <div className="flex items-center gap-2">
+                <History className="size-4 text-muted-foreground" aria-hidden="true" />
+                <p className="text-sm font-medium">Histórico do certificado</p>
+            </div>
+            <p className="text-sm text-muted-foreground">
+                Cada envio, troca e remoção, e cada vez que a chave privada foi usada, com quem fez e para quê.
+            </p>
+            {events.length === 0 ? (
+                <p className="rounded-lg border border-dashed px-4 py-4 text-center text-sm text-muted-foreground">Nenhum registro ainda.</p>
+            ) : (
+                <ol className="divide-y rounded-lg border">
+                    {visible.map((event) => {
+                        const detail = eventDetail(event);
+
+                        return (
+                            <li key={event.id} className="flex flex-col gap-1 px-4 py-3 text-sm sm:flex-row sm:items-start sm:justify-between sm:gap-6">
+                                <div className="min-w-0">
+                                    <p className="font-medium">{event.purpose_label ?? event.type_label}</p>
+                                    {detail && <p className="break-words text-muted-foreground">{detail}</p>}
+                                </div>
+                                <div className="shrink-0 text-muted-foreground sm:text-right">
+                                    <p>
+                                        <time dateTime={event.created_at}>{formatDateTime(event.created_at)}</time>
+                                    </p>
+                                    <p className="break-words">
+                                        {event.actor.label ?? 'Sistema'}
+                                        {event.ip_address && <span> · {event.ip_address}</span>}
+                                    </p>
+                                </div>
+                            </li>
+                        );
+                    })}
+                </ol>
+            )}
+            {events.length > HISTORY_PREVIEW && (
+                <Button type="button" variant="ghost" size="sm" className="self-start" onClick={() => setExpanded((value) => !value)}>
+                    {expanded ? 'Mostrar menos' : `Mostrar os ${events.length} registros mais recentes`}
+                </Button>
+            )}
+        </div>
+    );
+}
+
+export default function InvoicesIssuer({ issuer, certificateEvents, canManage, options }: Props) {
     const form = useForm<IssuerForm>({
         legal_name: issuer?.legal_name ?? '',
         trade_name: issuer?.trade_name ?? '',
@@ -672,6 +750,9 @@ export default function InvoicesIssuer({ issuer, canManage, options }: Props) {
                                     </div>
                                 </form>
                             )}
+
+                            <Separator />
+                            <CertificateHistory events={certificateEvents} />
                         </>
                     )}
                 </FormSection>

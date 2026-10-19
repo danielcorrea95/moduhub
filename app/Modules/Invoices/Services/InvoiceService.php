@@ -8,6 +8,7 @@ use App\Modules\Invoices\Contracts\InvoiceRepositoryContract;
 use App\Modules\Invoices\Contracts\InvoiceServiceContract;
 use App\Modules\Invoices\Contracts\IssuerRepositoryContract;
 use App\Modules\Invoices\Contracts\SefinClientContract;
+use App\Modules\Invoices\Models\CertificateEvent;
 use App\Modules\Invoices\Models\Invoice;
 use App\Modules\Invoices\Models\Issuer;
 use App\Modules\Invoices\Services\Nfse\CancellationBuilder;
@@ -89,7 +90,10 @@ class InvoiceService implements InvoiceServiceContract
     {
         $issuer = $this->readyIssuer($tenant);
         $data = $this->withIssuerDefaults($data, $issuer);
-        $credentials = $this->credentials->load($issuer);
+        $credentials = $this->credentials->load($issuer, CertificateEvent::PURPOSE_DPS_SIGNATURE, array_filter([
+            'external_id' => $data['external_id'] ?? null,
+            'replaces_invoice_id' => $substitution['replaces_invoice_id'] ?? null,
+        ]));
         // Antes de reservar o número: código sem parametrização no município seria rejeitado com E0312.
         $this->serviceCodes->assertIssuable($issuer, $data['service'], Carbon::parse($data['competence_date'] ?? now()->toDateString()));
 
@@ -176,7 +180,10 @@ class InvoiceService implements InvoiceServiceContract
         }
 
         $issuer = $invoice->issuer;
-        $credentials = $this->credentials->load($issuer);
+        $credentials = $this->credentials->load($issuer, CertificateEvent::PURPOSE_CANCELLATION_SIGNATURE, [
+            'invoice_id' => $invoice->getKey(),
+            'access_key' => $invoice->access_key,
+        ]);
 
         $doc = $this->cancellation->build($invoice, $issuer, $reasonCode, $reason);
         $this->signer->sign($this->signedElement($doc, 'infPedReg'), $credentials);

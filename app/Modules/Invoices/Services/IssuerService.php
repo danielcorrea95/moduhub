@@ -5,6 +5,7 @@ namespace App\Modules\Invoices\Services;
 use App\Models\Tenant;
 use App\Modules\Invoices\Contracts\IssuerServiceContract;
 use App\Modules\Invoices\Models\Issuer;
+use App\Modules\Signatures\Services\IcpCertificate;
 use App\Modules\Signatures\Services\IcpCertificateService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -14,6 +15,7 @@ class IssuerService implements IssuerServiceContract
     public function __construct(
         protected IcpCertificateService $certificates,
         protected IssuerCertificateInspector $inspector,
+        protected CertificateAuditService $audit,
     ) {}
 
     public function configure(Tenant $tenant, array $attrs): Issuer
@@ -50,7 +52,18 @@ class IssuerService implements IssuerServiceContract
 
         $certificate = $this->certificates->parse($pkcs12Binary, $password);
         $this->inspector->assertUsableForNfse($certificate, $issuer);
+        $previousFingerprint = $issuer->certificate_fingerprint;
 
+        return DB::transaction(function () use ($issuer, $certificate, $pkcs12Binary, $password, $previousFingerprint) {
+            $this->storeCertificate($issuer, $certificate, $pkcs12Binary, $password);
+            $this->audit->uploaded($issuer, $previousFingerprint);
+
+            return $issuer;
+        });
+    }
+
+    protected function storeCertificate(Issuer $issuer, IcpCertificate $certificate, string $pkcs12Binary, #[\SensitiveParameter] string $password): void
+    {
         $issuer->forceFill([
             'certificate_pfx' => base64_encode($pkcs12Binary),
             'certificate_password' => $password,
@@ -62,15 +75,29 @@ class IssuerService implements IssuerServiceContract
             'certificate_valid_from' => $certificate->validFrom,
             'certificate_valid_until' => $certificate->validTo,
             'certificate_uploaded_at' => now(),
+            // Certificado novo, contagem de avisos de vencimento do zero.
+            'certificate_expiry_notice_days' => null,
         ])->save();
-
-        return $issuer;
     }
 
     public function removeCertificate(Tenant $tenant): Issuer
     {
         $issuer = $this->requireIssuer($tenant);
 
+        if (! $issuer->hasCertificate()) {
+            return $issuer;
+        }
+
+        return DB::transaction(function () use ($issuer) {
+            $this->audit->removed($issuer);
+            $this->clearCertificate($issuer);
+
+            return $issuer;
+        });
+    }
+
+    protected function clearCertificate(Issuer $issuer): void
+    {
         $issuer->forceFill([
             'certificate_pfx' => null,
             'certificate_password' => null,
@@ -82,9 +109,8 @@ class IssuerService implements IssuerServiceContract
             'certificate_valid_from' => null,
             'certificate_valid_until' => null,
             'certificate_uploaded_at' => null,
+            'certificate_expiry_notice_days' => null,
         ])->save();
-
-        return $issuer;
     }
 
     protected function requireIssuer(Tenant $tenant): Issuer
