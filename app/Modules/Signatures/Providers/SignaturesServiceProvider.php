@@ -18,6 +18,8 @@ use App\Modules\Signatures\Repositories\SignerRepository;
 use App\Modules\Signatures\Services\DocumentService;
 use App\Modules\Signatures\Services\DocumentSubmissionService;
 use App\Modules\Signatures\Services\SignatureService;
+use App\Modules\Signatures\Services\SignaturesDashboardSection;
+use App\Modules\Signatures\Services\SignaturesUsageMeter;
 use App\Modules\Signatures\Services\SignerService;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\Facades\Gate;
@@ -34,6 +36,12 @@ class SignaturesServiceProvider extends ServiceProvider
         SignatureRepositoryContract::class => SignatureRepository::class,
         SignatureServiceContract::class => SignatureService::class,
     ];
+
+    public function register(): void
+    {
+        $this->app->tag([SignaturesUsageMeter::class], 'usage-meters');
+        $this->app->tag([SignaturesDashboardSection::class], 'dashboard-sections');
+    }
 
     public function boot(): void
     {

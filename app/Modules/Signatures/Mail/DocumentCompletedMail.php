@@ -3,6 +3,7 @@
 namespace App\Modules\Signatures\Mail;
 
 use App\Models\Tenant;
+use App\Modules\Mailing\Services\TenantSender;
 use App\Modules\Signatures\Models\Document;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -38,8 +39,12 @@ class DocumentCompletedMail extends Mailable implements ShouldQueue
     {
         $prefix = $this->tenant?->name ? "{$this->tenant->name} · " : '';
 
+        $sender = app(TenantSender::class);
+
         return new Envelope(
-            subject: $prefix . "{$this->document->name} foi assinado por todos",
+            from: $sender->from($this->tenant),
+            replyTo: $sender->replyTo($this->tenant),
+            subject: $prefix."{$this->document->name} foi assinado por todos",
         );
     }
 
@@ -92,7 +97,7 @@ class DocumentCompletedMail extends Mailable implements ShouldQueue
     {
         $slug = Str::slug($this->document->name ?: 'documento');
 
-        return ($slug !== '' ? $slug : 'documento') . '-assinado.pdf';
+        return ($slug !== '' ? $slug : 'documento').'-assinado.pdf';
     }
 
     protected function resolvePrimaryColor(): string

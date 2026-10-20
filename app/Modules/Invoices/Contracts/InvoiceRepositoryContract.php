@@ -33,4 +33,13 @@ interface InvoiceRepositoryContract
 
     /** Nota rejeitada do workspace atual, usada como rascunho para corrigir e reenviar. */
     public function findRejected(string $id): ?Invoice;
+
+    /**
+     * Notas emitidas por mês (coluna month, AAAA-MM no fuso informado), com quantidade e valor somado.
+     * Cancelada e substituída não entram: o valor que vale é o da nota que ficou.
+     */
+    public function issuedTotalsByMonth(\DateTimeInterface $from, \DateTimeInterface $to, string $utcOffset): Collection;
+
+    /** Valor emitido por dia (coluna day, AAAA-MM-DD no fuso informado). Mesmas regras do mensal. */
+    public function issuedTotalsByDay(\DateTimeInterface $from, \DateTimeInterface $to, string $utcOffset): Collection;
 }

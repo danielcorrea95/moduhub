@@ -53,6 +53,15 @@ return [
             'transport' => 'ses',
         ],
 
+        // Produção. O configuration set publica entrega, bounce e reclamação no SNS, que chama
+        // /webhooks/ses. Ver docs/runbooks/email.md.
+        'ses-v2' => [
+            'transport' => 'ses-v2',
+            'options' => array_filter([
+                'ConfigurationSetName' => env('SES_CONFIGURATION_SET'),
+            ]),
+        ],
+
         'postmark' => [
             'transport' => 'postmark',
             // 'message_stream_id' => env('POSTMARK_MESSAGE_STREAM_ID'),

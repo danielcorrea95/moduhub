@@ -4,6 +4,7 @@ namespace App\Modules\Signatures\Mail;
 
 use App\Models\Tenant;
 use App\Models\User;
+use App\Modules\Mailing\Services\TenantSender;
 use App\Modules\Signatures\Models\Document;
 use App\Modules\Signatures\Models\DocumentSigner;
 use Illuminate\Bus\Queueable;
@@ -28,9 +29,13 @@ class DocumentReadyMail extends Mailable
         $tenantName = $this->tenant?->name;
         $prefix = $tenantName ? "{$tenantName} · " : '';
 
+        $sender = app(TenantSender::class);
+
         return new Envelope(
-            subject: $prefix . "{$this->document->name} aguarda sua assinatura",
+            from: $sender->from($this->tenant),
             to: [$this->signer->email],
+            replyTo: $sender->replyTo($this->tenant),
+            subject: $prefix."{$this->document->name} aguarda sua assinatura",
         );
     }
 

@@ -37,6 +37,8 @@ use App\Modules\Invoices\Services\Adn\FakeDfeDistribution;
 use App\Modules\Invoices\Services\Adn\FakeMunicipalAgreements;
 use App\Modules\Invoices\Services\Adn\FakeMunicipalParameters;
 use App\Modules\Invoices\Services\InvoiceService;
+use App\Modules\Invoices\Services\InvoicesDashboardSection;
+use App\Modules\Invoices\Services\InvoicesUsageMeter;
 use App\Modules\Invoices\Services\IssuerService;
 use App\Modules\Invoices\Services\Sefin\FakeSefinClient;
 use App\Modules\Invoices\Services\Sefin\SefinHttpClient;
@@ -59,6 +61,9 @@ class InvoicesServiceProvider extends ServiceProvider
 
     public function register(): void
     {
+        $this->app->tag([InvoicesUsageMeter::class], 'usage-meters');
+        $this->app->tag([InvoicesDashboardSection::class], 'dashboard-sections');
+
         // Singleton para o fake guardar as notas "emitidas" entre chamadas do mesmo processo (testes).
         $this->app->singleton(SefinClientContract::class, fn ($app) => config('invoices.sefin_driver') === 'fake'
             ? $app->make(FakeSefinClient::class)

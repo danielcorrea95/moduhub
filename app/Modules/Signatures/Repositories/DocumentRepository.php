@@ -89,4 +89,26 @@ class DocumentRepository implements DocumentRepositoryContract
             ->whereRaw('UPPER(RIGHT(id, 12)) = ?', [$normalized])
             ->first();
     }
+
+    public function countSentBetween(string $tenantId, \DateTimeInterface $from, \DateTimeInterface $to): int
+    {
+        return Document::query()
+            ->withoutTenantScope()
+            ->where('tenant_id', $tenantId)
+            ->whereNotNull('sent_at')
+            ->where('sent_at', '>=', $from)
+            ->where('sent_at', '<', $to)
+            ->count();
+    }
+
+    public function countCompletedBetween(string $tenantId, \DateTimeInterface $from, \DateTimeInterface $to): int
+    {
+        return Document::query()
+            ->withoutTenantScope()
+            ->where('tenant_id', $tenantId)
+            ->where('status', Document::STATUS_COMPLETED)
+            ->where('completed_at', '>=', $from)
+            ->where('completed_at', '<', $to)
+            ->count();
+    }
 }

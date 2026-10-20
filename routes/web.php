@@ -14,16 +14,26 @@ use App\Modules\Invoices\Http\Controllers\IssuerController as InvoicesIssuerCont
 use App\Modules\Invoices\Http\Controllers\MunicipalAgreementController as InvoicesAgreementController;
 use App\Modules\Invoices\Http\Controllers\MunicipalityController as InvoicesMunicipalityController;
 use App\Modules\Invoices\Http\Controllers\ReceivedInvoiceController as InvoicesReceivedController;
+use App\Modules\Mailing\Http\Controllers\EmailLogController;
+use App\Modules\Mailing\Http\Controllers\SendingDomainController;
+use App\Modules\Mailing\Http\Controllers\SesWebhookController;
+use App\Modules\Mailing\Http\Controllers\SmtpCredentialController;
 use App\Modules\Signatures\Http\Controllers\DocumentController as SignaturesDocumentController;
 use App\Modules\Signatures\Http\Controllers\PublicSignController as SignaturesPublicController;
-use App\Modules\Signatures\Http\Middleware\EnterSignerTenant;
 use App\Modules\Signatures\Http\Controllers\SignerController as SignaturesSignerController;
 use App\Modules\Signatures\Http\Controllers\VerificationController as SignaturesVerificationController;
+use App\Modules\Signatures\Http\Middleware\EnterSignerTenant;
+use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', HomeController::class)->name('home');
 
 Route::get('/docs/api', ApiDocsController::class)->name('docs.api');
+
+// Eventos do SES via SNS. Sem CSRF nem sessão de tenant: a assinatura da AWS autentica.
+Route::post('/webhooks/ses', SesWebhookController::class)
+    ->withoutMiddleware(PreventRequestForgery::class)
+    ->name('webhooks.ses');
 
 Route::get('/dashboard', DashboardController::class)
     ->middleware(['auth', 'verified'])
@@ -59,6 +69,25 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/workspace/settings', [WorkspaceController::class, 'edit'])->name('workspace.settings');
     Route::patch('/workspace/settings', [WorkspaceController::class, 'update'])->name('workspace.update');
+
+    Route::prefix('workspace/sending-domain')->name('sending-domain.')->controller(SendingDomainController::class)->group(function () {
+        Route::get('/', 'show')->name('show');
+        Route::post('/', 'store')->name('store');
+        Route::patch('/', 'update')->name('update');
+        Route::post('/verify', 'verify')->name('verify');
+        Route::post('/test', 'test')->middleware('throttle:5,10')->name('test');
+        Route::delete('/', 'destroy')->name('destroy');
+    });
+
+    Route::prefix('workspace/emails')->name('emails.')->controller(EmailLogController::class)->group(function () {
+        Route::get('/', 'overview')->name('overview');
+        Route::get('/mensagens', 'messages')->name('messages');
+        Route::get('/bloqueados', 'suppressions')->name('suppressions');
+        Route::delete('/bloqueados/{suppression}', 'release')->name('suppressions.release');
+    });
+
+    Route::post('/workspace/smtp-credentials', [SmtpCredentialController::class, 'store'])->name('smtp-credentials.store');
+    Route::delete('/workspace/smtp-credentials/{credential}', [SmtpCredentialController::class, 'destroy'])->name('smtp-credentials.destroy');
 
     Route::get('/workspace/members', [MemberController::class, 'index'])->name('workspace.members');
     Route::post('/workspace/invitations', [MemberController::class, 'invite'])->name('workspace.invitations.store');

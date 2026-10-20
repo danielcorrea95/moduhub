@@ -20,6 +20,11 @@ class ModuleSeeder extends Seeder
                 'name' => 'Notas Fiscais',
                 'description' => 'Emissão de NFS-e nacional via Padrão Nacional da NFS-e.',
             ],
+            [
+                'key' => Module::MAILING,
+                'name' => 'Envio de E-mails',
+                'description' => 'Envio de e-mails pelo SMTP e pela API da Moduhub com o domínio da empresa.',
+            ],
         ];
 
         foreach ($modules as $data) {

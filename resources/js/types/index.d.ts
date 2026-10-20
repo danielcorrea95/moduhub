@@ -23,7 +23,7 @@ export interface User {
 
 export type TenantRole = 'owner' | 'admin' | 'member';
 
-export type ModuleKey = 'signatures' | 'invoices';
+export type ModuleKey = 'signatures' | 'invoices' | 'mailing';
 
 export interface TenantBranding {
     primary_color?: string | null;
@@ -57,7 +57,18 @@ export interface SharedData {
     workspaces: WorkspaceSummary[];
     flash: Flash;
     sidebarOpen: boolean;
+    planUsage: PlanUsageMeter[];
     [key: string]: unknown;
+}
+
+/** Uso de um módulo no ciclo do plano (barra lateral). `limit` nulo = sem limite. */
+export interface PlanUsageMeter {
+    key: string;
+    label: string;
+    used: number;
+    limit: number | null;
+    resets_at: string;
+    detail: string | null;
 }
 
 export type PageProps<T extends Record<string, unknown> = Record<string, unknown>> =

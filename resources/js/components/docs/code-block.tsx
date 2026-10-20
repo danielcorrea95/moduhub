@@ -108,6 +108,37 @@ export function CodeSample({ samples }: { samples: Record<CodeLanguage, string> 
     );
 }
 
+/** Exemplos em abas com estado próprio (sem sincronizar com o resto da página). */
+export function CodeTabs({ samples, label }: { samples: { id: string; label: string; code: string }[]; label: string }) {
+    const [active, setActive] = useState(samples[0]?.id);
+    const current = samples.find((s) => s.id === active) ?? samples[0];
+
+    return (
+        <Frame
+            code={current.code}
+            toolbar={
+                <div role="tablist" aria-label={label} className="-ml-2 flex flex-wrap gap-0.5">
+                    {samples.map((s) => (
+                        <button
+                            key={s.id}
+                            type="button"
+                            role="tab"
+                            aria-selected={current.id === s.id}
+                            onClick={() => setActive(s.id)}
+                            className={cn(
+                                'rounded-md px-2.5 py-1 text-xs transition-colors focus-visible:outline-2 focus-visible:outline-white/60',
+                                current.id === s.id ? 'bg-white/12 text-white' : 'text-white/55 hover:text-white',
+                            )}
+                        >
+                            {s.label}
+                        </button>
+                    ))}
+                </div>
+            }
+        />
+    );
+}
+
 /** Bloco de código simples (resposta JSON, payload de webhook, etc.). */
 export function CodeBlock({ title, code }: { title: string; code: string }) {
     return <Frame title={title} code={code} />;

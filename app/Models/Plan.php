@@ -27,7 +27,7 @@ class Plan extends Model
     public function modules(): BelongsToMany
     {
         return $this->belongsToMany(Module::class, 'plan_module')
-            ->withPivot(['included_quota', 'overage_cents'])
+            ->withPivot(['included_quota', 'daily_quota', 'overage_cents'])
             ->withTimestamps();
     }
 }

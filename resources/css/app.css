@@ -59,6 +59,9 @@
     --color-sent-soft: var(--sent-soft);
     --color-idle: var(--idle);
     --color-idle-soft: var(--idle-soft);
+    --color-meter-signatures: var(--meter-signatures);
+    --color-meter-invoices: var(--meter-invoices);
+    --color-meter-mailing: var(--meter-mailing);
 }
 
 :root {
@@ -104,6 +107,11 @@
     --sent-soft: #e9ecfa;
     --idle: #5b6474;
     --idle-soft: #eceef2;
+
+    /* Uso do plano na barra lateral: uma cor por módulo, sem repetir as cores de status. */
+    --meter-signatures: #2338b8;
+    --meter-invoices: #0e7c86;
+    --meter-mailing: #8a4fd1;
 }
 
 @layer base {
@@ -143,4 +151,20 @@
 .signature-ink {
     clip-path: inset(0 100% 0 0);
     animation: signature-ink 1.5s cubic-bezier(0.55, 0.1, 0.35, 1) 0.8s forwards;
+}
+
+/* Tela inicial: o mês se revela da esquerda para a direita ao abrir. É a única animação da página. */
+@keyframes pace-reveal {
+    from {
+        clip-path: inset(0 100% 0 0);
+    }
+    to {
+        clip-path: inset(0 0 0 0);
+    }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .pace-reveal {
+        animation: pace-reveal 900ms cubic-bezier(0.33, 1, 0.68, 1) both;
+    }
 }

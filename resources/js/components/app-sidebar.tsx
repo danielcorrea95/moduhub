@@ -1,5 +1,6 @@
 import AppLogo from '@/components/app-logo';
 import { NavUser } from '@/components/nav-user';
+import { PlanUsage } from '@/components/plan-usage';
 import {
     Sidebar,
     SidebarContent,
@@ -17,12 +18,14 @@ import { WorkspaceSwitcher } from '@/components/workspace-switcher';
 import type { NavGroup, SharedData } from '@/types';
 import { Link, usePage } from '@inertiajs/react';
 import {
+    AtSign,
     BookOpen,
     Building2, Inbox, MapPinned,
     FileSignature,
     House,
     KeyRound,
     ReceiptText,
+    Send,
     Settings,
     UsersRound,
     Webhook,
@@ -114,6 +117,23 @@ function useNavGroups(): NavGroup[] {
                 ],
             },
             {
+                title: 'E-mail',
+                items: [
+                    {
+                        title: 'Enviados',
+                        href: route('emails.overview'),
+                        icon: Send,
+                        isActive: current('emails.*'),
+                    },
+                    {
+                        title: 'Domínio de envio',
+                        href: route('sending-domain.show'),
+                        icon: AtSign,
+                        isActive: current('sending-domain.*'),
+                    },
+                ],
+            },
+            {
                 title: 'Integrações',
                 items: [
                     {
@@ -188,7 +208,8 @@ export function AppSidebar() {
                 ))}
             </SidebarContent>
 
-            <SidebarFooter className="px-3 pb-4">
+            <SidebarFooter className="gap-3 px-3 pb-4">
+                <PlanUsage />
                 <NavUser />
             </SidebarFooter>
             <SidebarRail />

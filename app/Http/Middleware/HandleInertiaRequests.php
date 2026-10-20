@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Platform\Services\PlanUsageService;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
@@ -53,6 +54,9 @@ class HandleInertiaRequests extends Middleware
                 'modules' => $currentTenant->activeModules()->pluck('key'),
             ] : null,
             'workspaces' => $workspaces,
+            'planUsage' => fn () => $currentTenant !== null && $user !== null
+                ? app(PlanUsageService::class)->forTenant($currentTenant)
+                : [],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'flash' => [
                 'success' => fn () => $request->session()->get('success'),

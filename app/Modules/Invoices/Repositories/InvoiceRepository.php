@@ -90,4 +90,26 @@ class InvoiceRepository implements InvoiceRepositoryContract
             ->whereBetween('created_at', [$start, $end])
             ->count();
     }
+
+    public function issuedTotalsByMonth(\DateTimeInterface $from, \DateTimeInterface $to, string $utcOffset): Collection
+    {
+        return Invoice::query()
+            ->selectRaw("DATE_FORMAT(CONVERT_TZ(issued_at, '+00:00', ?), '%Y-%m') as month, COUNT(*) as total_count, SUM(amount) as total_amount", [$utcOffset])
+            ->where('status', Invoice::STATUS_ISSUED)
+            ->whereBetween('issued_at', [$from, $to])
+            ->groupBy('month')
+            ->orderBy('month')
+            ->get();
+    }
+
+    public function issuedTotalsByDay(\DateTimeInterface $from, \DateTimeInterface $to, string $utcOffset): Collection
+    {
+        return Invoice::query()
+            ->selectRaw("DATE(CONVERT_TZ(issued_at, '+00:00', ?)) as day, SUM(amount) as total_amount", [$utcOffset])
+            ->where('status', Invoice::STATUS_ISSUED)
+            ->whereBetween('issued_at', [$from, $to])
+            ->groupBy('day')
+            ->orderBy('day')
+            ->get();
+    }
 }

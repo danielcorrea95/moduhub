@@ -26,6 +26,8 @@ use App\Platform\Repositories\WebhookRepository;
 use App\Platform\Services\ApiKeyService;
 use App\Platform\Services\InvitationService;
 use App\Platform\Services\MemberService;
+use App\Platform\Services\DashboardService;
+use App\Platform\Services\PlanUsageService;
 use App\Platform\Services\RegistrationService;
 use App\Platform\Services\TenantService;
 use App\Platform\Services\WebhookDispatcher;
@@ -66,6 +68,11 @@ class AppServiceProvider extends ServiceProvider
         // Scoped, e não singleton: o Laravel zera a instância entre jobs da fila e entre requests no Octane,
         // então o tenant de um job nunca sobra para o próximo no mesmo worker.
         $this->app->scoped(CurrentTenant::class);
+
+        // Cada módulo registra o seu medidor com a tag `usage-meters` no próprio provider.
+        $this->app->when(PlanUsageService::class)->needs('$meters')->giveTagged('usage-meters');
+        // Idem para a tela inicial: tag `dashboard-sections`, na ordem em que os providers sobem.
+        $this->app->when(DashboardService::class)->needs('$sections')->giveTagged('dashboard-sections');
     }
 
     public function boot(): void

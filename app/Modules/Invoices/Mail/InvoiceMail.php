@@ -5,6 +5,7 @@ namespace App\Modules\Invoices\Mail;
 use App\Models\Tenant;
 use App\Modules\Invoices\Models\Invoice;
 use App\Modules\Invoices\Services\Danfse\DanfseGenerator;
+use App\Modules\Mailing\Services\TenantSender;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Address;
 use Illuminate\Mail\Mailables\Attachment;
@@ -34,6 +35,7 @@ class InvoiceMail extends Mailable
         $number = $this->invoice->nfse_number;
 
         return new Envelope(
+            from: app(TenantSender::class)->from($this->tenant),
             subject: match ($this->kind) {
                 self::KIND_CANCELLED => $this->invoice->isReplaced()
                     ? "{$from} · NFS-e nº {$number} substituída"

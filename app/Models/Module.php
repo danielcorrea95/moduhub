@@ -8,7 +8,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 class Module extends Model
 {
     public const SIGNATURES = 'signatures';
+
     public const INVOICES = 'invoices';
+
+    public const MAILING = 'mailing';
 
     /** Módulos com telas prontas. Os demais aparecem como "em breve" no site e no painel. */
     public const RELEASED = [self::SIGNATURES];
@@ -32,7 +35,7 @@ class Module extends Model
     public function plans(): BelongsToMany
     {
         return $this->belongsToMany(Plan::class, 'plan_module')
-            ->withPivot(['included_quota', 'overage_cents'])
+            ->withPivot(['included_quota', 'daily_quota', 'overage_cents'])
             ->withTimestamps();
     }
 }

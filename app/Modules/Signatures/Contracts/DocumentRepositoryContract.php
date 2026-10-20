@@ -28,4 +28,9 @@ interface DocumentRepositoryContract
     public function findWithRelations(string $id): ?Document;
 
     public function findByShortId(string $shortId): ?Document;
+
+    /** Documentos enviados para assinatura no intervalo, de um workspace (com ou sem tenant no contexto). */
+    public function countSentBetween(string $tenantId, \DateTimeInterface $from, \DateTimeInterface $to): int;
+
+    public function countCompletedBetween(string $tenantId, \DateTimeInterface $from, \DateTimeInterface $to): int;
 }

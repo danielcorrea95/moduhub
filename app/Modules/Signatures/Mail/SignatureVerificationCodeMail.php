@@ -3,6 +3,7 @@
 namespace App\Modules\Signatures\Mail;
 
 use App\Models\Tenant;
+use App\Modules\Mailing\Services\TenantSender;
 use App\Modules\Signatures\Models\DocumentSigner;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
@@ -26,9 +27,13 @@ class SignatureVerificationCodeMail extends Mailable
         $tenantName = $this->tenant?->name;
         $prefix = $tenantName ? "{$tenantName} · " : '';
 
+        $sender = app(TenantSender::class);
+
         return new Envelope(
-            subject: $prefix . "Seu código para assinar: {$this->documentName}",
+            from: $sender->from($this->tenant),
             to: [$this->signer->email],
+            replyTo: $sender->replyTo($this->tenant),
+            subject: $prefix."Seu código para assinar: {$this->documentName}",
         );
     }
 

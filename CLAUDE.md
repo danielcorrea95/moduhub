@@ -91,6 +91,18 @@ app/Modules/<ModuleName>/
 - XML fiscal novo vira atributo virtual com o trait `ArchivesXml` (coluna `*_path` no banco, conteúdo no disco `fiscal`), não coluna `longText`. XML fiscal nunca é apagado.
 - Operação, bucket, IAM e migração: `docs/runbooks/armazenamento.md`.
 
+## E-mail (SES)
+
+- Produção usa o mailer `ses-v2`. Remetente padrão no domínio da Moduhub.
+- E-mail que o workspace manda para fora (signatário, tomador) pega `from`/`replyTo` de `TenantSender`, que só devolve o domínio próprio do workspace quando ele está verificado (`SendingDomain`). E-mail da conta (senha, cadastro, convite de membro) nunca usa o domínio do cliente.
+- Todo envio passa por `Mail`/Mailable. Nada de cliente SES chamado direto: o listener `RecordSentEmail` só rastreia o que sai pelo Laravel.
+- `email_deliveries` guarda um status por destinatário, atualizado pelos eventos do SES em `/webhooks/ses` (SNS com assinatura e tópico conferidos no `SesNotificationRequest`). O status só avança; não sobrescreva à mão.
+- Envio pelo sistema do cliente: relay próprio `smtp.moduhub.com.br` (decisão de 2026-10-20; credencial SMTP da AWS por cliente descartada por não permitir cota nem bloqueio antes do envio). Credenciais em `smtp_credentials` (usuário `mdhb_smtp_*`, senha só como SHA-256, só com domínio verificado). O relay em si ainda não existe: `MAIL_RELAY_ENABLED=false` deixa o painel em "em implantação".
+- Cota do disparo (decisão de 2026-10-20): conta **só** o que o cliente envia pelo relay SMTP e pela API, **por mensagem** (não por destinatário). Convites de assinatura, códigos e NFS-e não consomem. Grátis: 100/dia e 3.000/mês. Plano com o módulo `mailing`: `plan_module.daily_quota` e `included_quota` (nulo = sem limite), mês = ciclo da assinatura. Passou de qualquer limite, **bloqueia até renovar**, sem excedente. Dia vira à meia-noite de Brasília. Todo envio do relay/API chama `EmailQuotaService::reserve()` antes do SES e `release()` se o SES recusar; contador diário em `tenant_module_usage`.
+- Histórico e relatório (E-mail → Enviados): `email_delivery_events` guarda cada evento do SES deduplicado pelo horário em milissegundos (o SNS reentrega). Abertura e clique vêm por mensagem e marcam todos os destinatários dela; só aparecem com `MAIL_TRACK_ENGAGEMENT=true`. Link clicado é gravado sem query string. Destinatário e assunto são dado de terceiro: só dono e admin veem.
+- Bounce permanente e spam entram em `email_suppressions` (`EmailSuppressionService`). O relay e a API consultam `isSuppressed()` antes de enviar. Spam não é liberado pelo workspace; liberar um bounce tira também da lista da conta SES, que vale para todos.
+- Configuração na AWS, suporte e alarmes: `docs/runbooks/email.md`.
+
 ## Testes (quando houver)
 
 - Feature tests em `tests/Feature/<Module>/` — testam o fluxo HTTP → Service → DB.
@@ -126,6 +138,17 @@ app/Modules/<ModuleName>/
 
 **Regulatório em movimento.** Acórdão Anatel 201/2025 pede plano de governança do SMS A2P. ABR Telecom vai centralizar diretório de short codes (jan/2026), com cadeia operadora → broker → cliente final registrada. MP 1.396/2026 (13/10/2026) manda bloquear mensagens com códigos de acesso irregulares em 30 dias e dá 60 dias para a Anatel regulamentar.
 
+### E-mail — decisão de 2026-10-19
+
+**Agora.** Amazon SES no plano *Essentials* (sem mensalidade, US$ 0,16 por mil destinatários, anexo US$ 0,12/GB; cobrança por destinatário, faixas marginais). Servidor SMTP próprio descartado: subir é fácil, mas porta 25 bloqueada nas clouds, aquecimento de IP e blocklists fazem um volume baixo entregar pior que qualquer provedor.
+
+**Depois: módulo de disparo para clientes** (cada cliente com domínio próprio). Desenho previsto:
+- Domínio do cliente verificado pela API do SES: **já existe** (Workspace → Domínio de envio, `SendingDomainService`), hoje usado nos e-mails de assinatura e NFS-e. O módulo de disparo reaproveita. Só domínio próprio; nunca `@gmail.com` e afins (o DMARC deles reprova).
+- Isolamento por cliente: a AWS revisa a conta inteira com bounce > 5% ou reclamação > 0,1%. O Laravel pausa o cliente bem antes, por configuration set e eventos. O recurso *Tenants* do SES só vem incluído no plano Enterprise (US$ 500/mês).
+- Marketing (newsletter, campanhas) numa conta AWS separada da transacional, para não derrubar os e-mails de assinatura.
+
+**SMS pela AWS (End User Messaging), consultado em 2026-10-19.** Brasil a US$ 0,03/SMS (~R$ 0,17), long code só por chamado de suporte, short code dedicado com US$ 330 de setup + US$ 330/mês. Mais caro que provedor nacional e com origem incerta (risco Anatel): no máximo um driver de failover. WhatsApp pelo mesmo serviço: US$ 0,005 da AWS + taxa da Meta (autenticação/utilidade US$ 0,0051, marketing US$ 0,0471), ou seja, OTP a ~US$ 0,01.
+
 ## Comandos do dia-a-dia
 
 ```bash
@@ -138,3 +161,5 @@ app/Modules/<ModuleName>/
 ```
 
 URL do app: http://localhost:8080 · MySQL: localhost:3308
+
+Deploy em produção (servidor, `.env`, AWS, ordem dos passos e o que conferir): `docs/runbooks/deploy.md`. Mudou algo que o deploy precisa saber (variável, migration de dados, tarefa agendada, permissão na AWS)? Atualize esse arquivo junto.
