@@ -3,7 +3,8 @@
 O que o servidor precisa ter, o `.env` completo, o que montar na AWS e a ordem dos passos. Os detalhes de cada assunto ficam nos runbooks próprios:
 - arquivos: [armazenamento.md](armazenamento.md);
 - e-mail: [email.md](email.md);
-- certificados: [certificados.md](certificados.md).
+- certificados: [certificados.md](certificados.md);
+- cobrança (Asaas): [cobranca.md](cobranca.md).
 
 ## Pendente no próximo deploy (situação em 2026-10-20)
 
@@ -30,6 +31,34 @@ O último commit é `7b68334` (arquivos no S3). Ainda **não commitado** e indo 
 
   Elas criam as tabelas de e-mail, a coluna `plan_module.daily_quota`, a tabela `tenant_module_usage` e o módulo `mailing`.
 
+- **Cobrança pelo Asaas (`App\Modules\Billing`):**
+  - tela **Workspace → Assinatura**, com Pix ou cartão recorrente;
+  - webhook `/webhooks/asaas`;
+  - excedente cobrado no fechamento do ciclo;
+  - bloqueio só leitura por falta de pagamento;
+  - tarefa `billing:cycle` de hora em hora.
+
+  Migrations `2026_10_20_000004` e `000005`. A `000005` cria o carrinho: a coluna `tenant_subscriptions.plan_id` vira item em `tenant_subscription_items` e é apagada. Ela também cria `users.is_platform_admin`.
+
+  Variáveis `ASAAS_*` e `BILLING_GRACE_DAYS`.
+
+  **Antes de abrir as vendas:**
+  - crie o admin com o `PlatformAdminSeeder`;
+  - cadastre os planos de cada produto em `/admin/planos`;
+  - desligue os combos antigos.
+
+  Detalhes em [cobranca.md](cobranca.md), seção "Admin da plataforma". **Antes de subir**, leia "Workspaces antigos" em [cobranca.md](cobranca.md): teste grátis vencido sem assinatura vira só leitura na primeira rodada.
+
+- **SEO das páginas públicas:**
+  - SSR do Inertia, com um processo Node novo (veja "Processos que precisam estar rodando");
+  - páginas de produto (`/assinatura-eletronica`, `/emissor-nfse`, `/disparo-de-email`);
+  - meta tags, Open Graph e JSON-LD;
+  - `robots.txt`, `sitemap.xml` e `llms.txt` gerados pelo Laravel. O `public/robots.txt` estático foi apagado e, se o deploy copiar arquivos, não pode voltar.
+
+  O `APP_URL` vira o endereço canônico de todas as páginas e o do sitemap. Use o domínio onde o site vai ser encontrado.
+
+  Depois do deploy, envie `https://<APP_URL>/sitemap.xml` ao Google Search Console.
+
 Se a produção ainda não recebeu os commits anteriores (S3 e certificados), siga também a seção "Servidor novo ou primeiro deploy com S3".
 
 ## Servidor
@@ -48,7 +77,12 @@ Se a produção ainda não recebeu os commits anteriores (S3 e certificados), si
 2. **Fila:** `php artisan queue:work --tries=3 --max-time=3600`, sob Supervisor ou systemd.
    - Por ela passam e-mails (convites, NFS-e), webhooks dos clientes e entrega da nota por e-mail.
    - Sem fila rodando, nada disso sai.
-3. **Agendador:** uma linha no cron.
+3. **SSR (Node 20+):** `php artisan inertia:start-ssr`, sob Supervisor ou systemd, com reinício automático.
+   - Renderiza no servidor as páginas públicas: página inicial, `/assinatura-eletronica`, `/emissor-nfse`, `/disparo-de-email` e `/docs/api`. Assim, Google e robôs de IA leem o texto sem executar JavaScript. O painel não passa por ele.
+   - Escuta em `127.0.0.1:13714` (`INERTIA_SSR_URL`); não exponha essa porta.
+   - Se o processo cair, o site continua no ar, só que renderizado no navegador. Título, descrição e JSON-LD continuam no HTML, porque saem do Blade. O texto da página some para os robôs até o processo voltar.
+   - Depois de cada `npm run build`, rode `php artisan inertia:stop-ssr`. O Supervisor sobe o processo de novo com o bundle novo.
+4. **Agendador:** uma linha no cron.
 
    ```cron
    * * * * * cd /caminho/do/moduhub && php artisan schedule:run >> /dev/null 2>&1
@@ -61,6 +95,7 @@ Se a produção ainda não recebeu os commits anteriores (S3 e certificados), si
    | `invoices:sync-agreements` | domingo, 03:00: convênios dos municípios |
    | `invoices:check-certificates` | 08:00 de Brasília: aviso de certificado do emitente vencendo |
    | `signatures:check-platform-certificate` | 08:00 de Brasília: certificado da Moduhub |
+   | `billing:cycle` | de hora em hora: fim do teste, excedente do ciclo, bloqueio por atraso |
 
 ## `.env` de produção
 
@@ -124,6 +159,13 @@ SIGNATURES_PLATFORM_CERT_PASSWORD=...
 SIGNATURES_PLATFORM_CERT_ALERT_EMAILS=financeiro@...,tecnico@...
 CERTIFICATES_ENCRYPTION_KEY=...           # diferente da APP_KEY; perder = perder os certificados dos clientes
 CERTIFICATES_ENCRYPTION_PREVIOUS_KEYS=
+
+# Cobrança (docs/runbooks/cobranca.md)
+ASAAS_DRIVER=asaas
+ASAAS_API_KEY=...                         # chave de produção
+ASAAS_BASE_URL=https://api.asaas.com/v3
+ASAAS_WEBHOOK_TOKEN=...                   # igual ao token do webhook no painel do Asaas
+BILLING_GRACE_DAYS=7
 ```
 
 **Atenção:**
@@ -160,7 +202,7 @@ php artisan down                                  # se houver tráfego
 
 git pull                                          # ou o artefato do CI
 composer install --no-dev --optimize-autoloader
-npm ci && npm run build                           # se o build não vier pronto
+npm ci && npm run build                           # gera public/build e bootstrap/ssr (SSR)
 
 php artisan migrate --force
 php artisan db:seed --class=ModuleSeeder --force  # garante os módulos (o mailing também entra pela migration)
@@ -171,6 +213,7 @@ php artisan view:cache
 php artisan event:cache
 
 php artisan queue:restart                         # os workers pegam o código novo
+php artisan inertia:stop-ssr                      # o Supervisor sobe o SSR com o bundle novo
 php artisan up
 ```
 
@@ -181,11 +224,14 @@ Depois do primeiro deploy com o módulo de e-mail:
 
 ## Conferir depois do deploy
 
+- [ ] `curl -s https://<APP_URL>/ | grep -c '<h1'` dá `1`. Com o SSR fora do ar, dá `0`.
+- [ ] `https://<APP_URL>/robots.txt` e `https://<APP_URL>/sitemap.xml` respondem com o domínio de produção.
 - [ ] Login e tela inicial abrem sem erro. Como proprietário, aparecem "Sua conta na Moduhub" e os alertas.
 - [ ] **Workspace → Domínio de envio:** mande um teste para o seu e-mail. Em segundos, **E-mail → Enviados → Mensagens** mostra *Entregue*. Isso prova que o SNS está chegando. Ao abrir o e-mail, aparece *Aberto*.
 - [ ] Envie um documento para assinatura e confira que o convite chegou.
 - [ ] Emita uma NFS-e em produção restrita (ou baixe o XML e o DANFSe de uma existente), para validar S3 e certificado.
-- [ ] `php artisan schedule:list` mostra as cinco tarefas.
+- [ ] `php artisan schedule:list` mostra as seis tarefas.
+- [ ] Webhook do Asaas cadastrado ([cobranca.md](cobranca.md), "Configurar no Asaas"). No log de webhooks do Asaas, o primeiro evento volta 200.
 - [ ] O worker da fila está vivo (`supervisorctl status` ou equivalente).
 - [ ] No `storage/logs/laravel.log` não aparece `critical` de certificado da plataforma.
 
@@ -193,7 +239,7 @@ Depois do primeiro deploy com o módulo de e-mail:
 
 | Item | Situação |
 |---|---|
-| Relay `smtp.moduhub.com.br` | Não existe. As credenciais SMTP aparecem no painel com aviso de "em implantação" (`MAIL_RELAY_ENABLED=false`). |
+| Relay `smtp.moduhub.com.br` | **Não existe.** As credenciais SMTP aparecem no painel com aviso de "em implantação" (`MAIL_RELAY_ENABLED=false`). A página de vendas já vende o disparo de e-mail como disponível, com exemplo de SMTP. Não cadastre plano de e-mail à venda antes de o relay entrar no ar. |
 | Planos de e-mail | Grade anotada (grátis, R$ 24,90, R$ 99, R$ 179, R$ 499), mas não cadastrada em `plans`/`plan_module`. Sem plano, todo workspace usa a cota grátis. |
-| Cobrança | A tela inicial mostra a **previsão** do ciclo (plano + excedente de notas). Não existe fatura nem integração de pagamento. |
+| Cobrança | Integrada ao Asaas. Falta validar no sandbox os pontos listados em [cobranca.md](cobranca.md) e pedir a tokenização de cartão em produção. |
 | Saída do sandbox do SES | Pedir à AWS antes de vender o disparo. |

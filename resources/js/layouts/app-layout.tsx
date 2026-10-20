@@ -1,5 +1,6 @@
 import { AppSidebar } from '@/components/app-sidebar';
 import { AppSidebarHeader } from '@/components/app-sidebar-header';
+import { BillingNotice } from '@/components/billing/billing-notice';
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 import { Toaster } from '@/components/ui/sonner';
 import { useFlashToasts } from '@/hooks/use-flash-toasts';
@@ -34,6 +35,7 @@ export default function AppLayout({
             <AppSidebar />
             <SidebarInset className="min-w-0 overflow-hidden bg-card">
                 <AppSidebarHeader breadcrumbs={breadcrumbs} />
+                <BillingNotice />
                 <main
                     className={cn(
                         'mx-auto flex w-full flex-1 flex-col gap-6 px-4 py-6 md:px-8 md:py-8',

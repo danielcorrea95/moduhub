@@ -28,6 +28,9 @@ interface InvoiceRepositoryContract
     /** Notas que contam na cota: toda DPS do período que não foi rejeitada (inclui pendentes, canceladas e substituídas). */
     public function countBilledBetween(string $tenantId, \DateTimeInterface $start, \DateTimeInterface $end): int;
 
+    /** Notas marcadas como excedente no período (fim exclusivo), menos as rejeitadas. */
+    public function countOverageBetween(string $tenantId, \DateTimeInterface $start, \DateTimeInterface $end): int;
+
     /** Nota nossa pela chave de acesso. Busca explícita pelo tenant: a sincronização roda em comando, sem sessão. */
     public function findByAccessKeyForTenant(string $tenantId, string $accessKey): ?Invoice;
 

@@ -2,37 +2,32 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Module;
-use App\Models\Plan;
-use App\Platform\Contracts\PlanRepositoryContract;
+use App\Http\Seo\MarketingPages;
+use App\Platform\Services\PlanCatalogService;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class HomeController extends Controller
 {
-    public function __construct(protected PlanRepositoryContract $plans) {}
+    public function __construct(protected PlanCatalogService $catalog) {}
 
     public function __invoke(): Response
     {
+        $products = $this->catalog->products();
+        $seo = MarketingPages::home($products);
+
         return Inertia::render('Welcome', [
             'canRegister' => Route::has('register'),
-            'plans' => $this->plans->publicCatalog()->map(fn (Plan $plan) => [
-                'key' => $plan->key,
-                'name' => $plan->name,
-                'description' => $plan->description,
-                'price_cents' => $plan->price_cents,
-                'currency' => $plan->currency,
-                'billing_period' => $plan->billing_period,
-                'trial_days' => $plan->trial_days,
-                'modules' => $plan->modules->map(fn (Module $m) => [
-                    'key' => $m->key,
-                    'name' => $m->name,
-                    'released' => $m->isReleased(),
-                    'included_quota' => $m->pivot->included_quota,
-                    'overage_cents' => $m->pivot->overage_cents,
-                ])->values(),
-            ])->values(),
-        ]);
+            'products' => $products,
+            'faq' => MarketingPages::faq('home'),
+            'seoTitle' => $seo->title,
+            'apiBaseUrl' => rtrim(url('/api/v1'), '/'),
+            // Cota grátis do disparo, a mesma que o EmailQuotaService aplica.
+            'mailingFreeQuota' => [
+                'daily' => (int) config('mailing.quota.free.daily'),
+                'monthly' => (int) config('mailing.quota.free.monthly'),
+            ],
+        ])->withViewData('seo', $seo);
     }
 }

@@ -20,7 +20,7 @@ import { Link, usePage } from '@inertiajs/react';
 import {
     AtSign,
     BookOpen,
-    Building2, Inbox, MapPinned,
+    Building2, CreditCard, Inbox, MapPinned, Tags,
     FileSignature,
     House,
     KeyRound,
@@ -32,7 +32,7 @@ import {
 } from 'lucide-react';
 
 function useNavGroups(): NavGroup[] {
-    const { currentTenant } = usePage<SharedData>().props;
+    const { currentTenant, auth } = usePage<SharedData>().props;
     const current = (name: string) => route().current(name);
 
     const groups: NavGroup[] = [
@@ -48,6 +48,20 @@ function useNavGroups(): NavGroup[] {
             ],
         },
     ];
+
+    if (auth.user?.is_platform_admin) {
+        groups.push({
+            title: 'Admin',
+            items: [
+                {
+                    title: 'Planos',
+                    href: route('admin.plans.index'),
+                    icon: Tags,
+                    isActive: current('admin.plans.*'),
+                },
+            ],
+        });
+    }
 
     if (!currentTenant) return groups;
 
@@ -114,6 +128,17 @@ function useNavGroups(): NavGroup[] {
                         icon: Settings,
                         isActive: current('workspace.settings'),
                     },
+                    // Cobrança é só do dono (TenantPolicy::manageBilling).
+                    ...(currentTenant.role === 'owner'
+                        ? [
+                              {
+                                  title: 'Assinatura',
+                                  href: route('billing.show'),
+                                  icon: CreditCard,
+                                  isActive: current('billing.*'),
+                              },
+                          ]
+                        : []),
                 ],
             },
             {

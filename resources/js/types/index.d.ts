@@ -1,4 +1,5 @@
 import type { AxiosStatic } from 'axios';
+import type { BillingNotice } from '@/components/billing/types';
 import type { LucideIcon } from 'lucide-react';
 
 declare global {
@@ -19,6 +20,8 @@ export interface User {
     name: string;
     email: string;
     email_verified_at: string | null;
+    /** Equipe da Moduhub: vê o Admin no menu. */
+    is_platform_admin?: boolean;
 }
 
 export type TenantRole = 'owner' | 'admin' | 'member';
@@ -58,6 +61,7 @@ export interface SharedData {
     flash: Flash;
     sidebarOpen: boolean;
     planUsage: PlanUsageMeter[];
+    billingNotice: BillingNotice | null;
     [key: string]: unknown;
 }
 

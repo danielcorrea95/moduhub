@@ -1,5 +1,6 @@
 <?php
 
+use App\Modules\Billing\Providers\BillingServiceProvider;
 use App\Modules\Invoices\Providers\InvoicesServiceProvider;
 use App\Modules\Mailing\Providers\MailingServiceProvider;
 use App\Modules\Signatures\Providers\SignaturesServiceProvider;
@@ -10,4 +11,5 @@ return [
     SignaturesServiceProvider::class,
     InvoicesServiceProvider::class,
     MailingServiceProvider::class,
+    BillingServiceProvider::class,
 ];

@@ -23,7 +23,14 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'is_platform_admin' => 'boolean',
         ];
+    }
+
+    /** Equipe da Moduhub: cadastra planos em /admin. Só o PlatformAdminSeeder liga essa marca. */
+    public function isPlatformAdmin(): bool
+    {
+        return (bool) $this->is_platform_admin;
     }
 
     public function tenants(): BelongsToMany

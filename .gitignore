@@ -35,3 +35,4 @@ Thumbs.db
 # Certificados digitais
 *.pfx
 *.p12
+/bootstrap/ssr

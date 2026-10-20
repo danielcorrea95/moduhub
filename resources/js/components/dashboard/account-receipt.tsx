@@ -1,4 +1,5 @@
 import { cn, formatDate } from '@/lib/utils';
+import { Link } from '@inertiajs/react';
 import { Money } from './money';
 import { formatCents, type Billing } from './types';
 
@@ -35,6 +36,10 @@ export function AccountReceipt({ billing }: { billing: Billing }) {
                     Pagamento em atraso. Regularize para não perder o acesso.
                 </p>
             )}
+
+            <Link href={route('billing.show')} className="mt-4 inline-block text-sm font-medium text-primary underline-offset-4 hover:underline">
+                {billing.status === 'trial' ? 'Ver planos e assinar' : 'Gerenciar assinatura'}
+            </Link>
         </section>
     );
 }

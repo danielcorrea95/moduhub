@@ -91,6 +91,18 @@ class InvoiceRepository implements InvoiceRepositoryContract
             ->count();
     }
 
+    public function countOverageBetween(string $tenantId, \DateTimeInterface $start, \DateTimeInterface $end): int
+    {
+        return Invoice::query()
+            ->withoutTenantScope()
+            ->where('tenant_id', $tenantId)
+            ->where('is_overage', true)
+            ->where('status', '!=', Invoice::STATUS_REJECTED)
+            ->where('created_at', '>=', $start)
+            ->where('created_at', '<', $end)
+            ->count();
+    }
+
     public function issuedTotalsByMonth(\DateTimeInterface $from, \DateTimeInterface $to, string $utcOffset): Collection
     {
         return Invoice::query()

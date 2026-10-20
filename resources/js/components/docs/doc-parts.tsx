@@ -46,14 +46,17 @@ export function Callout({ tone = 'info', children }: { tone?: 'info' | 'warning'
 }
 
 /** Seção de topo (âncora do menu). */
-export function Section({ id, title, children }: { id: string; title: string; children: ReactNode }) {
+/** `primary` faz do título o h1 da página (a primeira seção), para buscadores saberem do que ela trata. */
+export function Section({ id, title, primary = false, children }: { id: string; title: string; primary?: boolean; children: ReactNode }) {
+    const Heading = primary ? 'h1' : 'h2';
+
     return (
         <section id={id} className="scroll-mt-20 border-b px-5 py-12 last:border-b-0 md:px-10 lg:scroll-mt-6">
-            <h2 className="text-xl font-semibold tracking-tight">
+            <Heading className="text-xl font-semibold tracking-tight">
                 <a href={`#${id}`} className="hover:text-primary focus-visible:outline-2 focus-visible:outline-ring">
                     {title}
                 </a>
-            </h2>
+            </Heading>
             <div className="mt-4 space-y-5">{children}</div>
         </section>
     );

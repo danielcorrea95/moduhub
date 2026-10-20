@@ -2,10 +2,12 @@
 
 namespace App\Http\Middleware;
 
+use App\Modules\Billing\Services\BillingOverviewService;
 use App\Platform\Services\PlanUsageService;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
+use Tighten\Ziggy\Ziggy;
 
 class HandleInertiaRequests extends Middleware
 {
@@ -57,6 +59,15 @@ class HandleInertiaRequests extends Middleware
             'planUsage' => fn () => $currentTenant !== null && $user !== null
                 ? app(PlanUsageService::class)->forTenant($currentTenant)
                 : [],
+            'billingNotice' => fn () => $currentTenant !== null && $user !== null
+                ? app(BillingOverviewService::class)->notice($currentTenant, $user)
+                : null,
+            // Rotas do Ziggy para o route() do SSR. Só na primeira carga (HTML), que é a única que passa pelo
+            // servidor de SSR; nas navegações seguintes o navegador já tem o @routes.
+            'ziggy' => fn () => $request->header('X-Inertia') ? null : [
+                ...(new Ziggy)->toArray(),
+                'location' => $request->url(),
+            ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'flash' => [
                 'success' => fn () => $request->session()->get('success'),

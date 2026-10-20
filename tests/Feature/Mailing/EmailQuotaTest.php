@@ -111,11 +111,10 @@ class EmailQuotaTest extends TestCase
         $plan = Plan::create(['key' => 'so-assinatura', 'name' => 'Só assinatura', 'price_cents' => 9900]);
         TenantSubscription::withoutGlobalScopes()->create([
             'tenant_id' => $this->tenant->getKey(),
-            'plan_id' => $plan->getKey(),
             'status' => TenantSubscription::STATUS_ACTIVE,
             'current_period_start' => now()->subDays(3),
             'current_period_end' => now()->addDays(27),
-        ]);
+        ])->plans()->attach($plan->getKey(), ['tenant_id' => $this->tenant->getKey(), 'price_cents' => $plan->price_cents]);
 
         $usage = $this->quota->usage($this->tenant);
 
@@ -175,10 +174,9 @@ class EmailQuotaTest extends TestCase
 
         TenantSubscription::withoutGlobalScopes()->create([
             'tenant_id' => $this->tenant->getKey(),
-            'plan_id' => $plan->getKey(),
             'status' => TenantSubscription::STATUS_ACTIVE,
             'current_period_start' => $start,
             'current_period_end' => $end,
-        ]);
+        ])->plans()->attach($plan->getKey(), ['tenant_id' => $this->tenant->getKey(), 'price_cents' => $plan->price_cents]);
     }
 }

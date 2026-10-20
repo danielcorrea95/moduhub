@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Seo\MarketingPages;
 use App\Models\Module;
 use App\Platform\EventCatalog;
 use App\Platform\ScopeCatalog;
@@ -23,6 +24,6 @@ class ApiDocsController extends Controller
                 ->collapse()
                 ->map(fn ($label, $key) => ['key' => $key, 'label' => $label])->values(),
             'rateLimitPerMinute' => AppServiceProvider::API_REQUESTS_PER_MINUTE,
-        ]);
+        ])->withViewData('seo', MarketingPages::apiDocs());
     }
 }

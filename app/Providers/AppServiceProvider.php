@@ -2,7 +2,9 @@
 
 namespace App\Providers;
 
+use App\Http\Ssr\PublicPagesSsrGateway;
 use App\Models\ApiKey;
+use App\Models\User;
 use App\Models\WebhookEndpoint;
 use App\Platform\Contracts\ApiKeyRepositoryContract;
 use App\Platform\Contracts\ApiKeyServiceContract;
@@ -73,6 +75,8 @@ class AppServiceProvider extends ServiceProvider
         $this->app->when(PlanUsageService::class)->needs('$meters')->giveTagged('usage-meters');
         // Idem para a tela inicial: tag `dashboard-sections`, na ordem em que os providers sobem.
         $this->app->when(DashboardService::class)->needs('$sections')->giveTagged('dashboard-sections');
+
+        $this->app->bind(\Inertia\Ssr\Gateway::class, PublicPagesSsrGateway::class);
     }
 
     public function boot(): void
@@ -83,6 +87,9 @@ class AppServiceProvider extends ServiceProvider
 
         Gate::policy(ApiKey::class, ApiKeyPolicy::class);
         Gate::policy(WebhookEndpoint::class, WebhookEndpointPolicy::class);
+
+        // Equipe da Moduhub (planos e preços). Não tem relação com o papel no workspace.
+        Gate::define('access-admin-panel', fn (User $user) => $user->isPlatformAdmin());
 
         // Limite por chave (não por IP): integrações costumam sair de poucos IPs compartilhados.
         RateLimiter::for('api', fn (Request $request) => Limit::perMinute(self::API_REQUESTS_PER_MINUTE)->by(

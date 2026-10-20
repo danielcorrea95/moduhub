@@ -21,12 +21,12 @@ class InvoiceQuotaService
     public function usage(Tenant $tenant): InvoiceUsage
     {
         // A relação já filtra pelo tenant recebido; o scope não acrescenta nada e exigiria contexto.
-        $subscription = $tenant->subscription()->withoutTenantScope()->with('plan.modules')->first();
+        $subscription = $tenant->subscription()->withoutTenantScope()->with('plans.modules')->first();
         [$start, $end] = $this->period($subscription);
 
-        $module = $subscription?->plan?->modules->firstWhere('key', Module::INVOICES);
-        $included = $module?->pivot?->included_quota;
-        $overage = $module?->pivot?->overage_cents;
+        $terms = $subscription?->termsFor(Module::INVOICES);
+        $included = $terms?->included_quota;
+        $overage = $terms?->overage_cents;
 
         return new InvoiceUsage(
             used: $this->invoices->countBilledBetween($tenant->getKey(), $start, $end),
@@ -35,7 +35,7 @@ class InvoiceQuotaService
             overageAllowed: $overage !== null && $subscription?->status === TenantSubscription::STATUS_ACTIVE,
             periodStart: $start,
             periodEnd: $end,
-            planName: $subscription?->plan?->name,
+            planName: $subscription?->planFor(Module::INVOICES)?->name,
         );
     }
 

@@ -455,7 +455,7 @@ export default function ApiDocs({ baseUrl, scopes, events, rateLimitPerMinute }:
     return (
         <CodeLanguageProvider>
             <DocsLayout title="Documentação da API" nav={NAV}>
-                <Section id="introducao" title="API do Moduhub">
+                <Section id="introducao" title="API do Moduhub: assinatura eletrônica e NFS-e" primary>
                     <Prose>
                         <p>
                             Com a API você envia documentos para assinatura a partir do seu sistema (CRM, ERP, plataforma própria), acompanha

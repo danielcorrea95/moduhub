@@ -103,6 +103,23 @@ app/Modules/<ModuleName>/
 - Bounce permanente e spam entram em `email_suppressions` (`EmailSuppressionService`). O relay e a API consultam `isSuppressed()` antes de enviar. Spam não é liberado pelo workspace; liberar um bounce tira também da lista da conta SES, que vale para todos.
 - Configuração na AWS, suporte e alarmes: `docs/runbooks/email.md`.
 
+## Cobrança (Asaas)
+
+- Módulo `App\Modules\Billing` (não é módulo vendido: sem linha em `modules`). Gateway atrás de `PaymentGatewayContract` (`ASAAS_DRIVER=asaas|fake`).
+- Pix (cobrança mensal que o cliente paga) ou cartão (recorrência cobrada sozinha). O cartão passa pelo backend direto para o Asaas e **nunca** é gravado nem logado: só bandeira, final e token. Campo novo de cartão entra no `dontFlash` de `bootstrap/app.php`.
+- Quem libera acesso é o webhook `/webhooks/asaas` (token no header `asaas-access-token`), nunca a resposta da API. `BillingStandingService::refresh()` recalcula a situação do zero a partir de `billing_payments`.
+- Sem pagamento o workspace fica **só leitura** (`TenantSubscription::isBlocked()`, conferido em `module.web` e `module`). A assinatura pública de documentos não é bloqueada.
+- Carrinho: a assinatura tem um plano por produto (`tenant_subscription_items`, com o preço contratado). Para saber cota e excedente de um produto use `$subscription->termsFor(Module::X)` (carregue `plans.modules`); nunca "o plano da assinatura".
+- Excedente: módulo que cobra além do plano implementa `BillableUsageContract` com a tag `billable-usage`; `billing:cycle` cobra no fechamento do ciclo.
+- Planos são cadastrados pela equipe em `/admin/planos` (gate `access-admin-panel`, `users.is_platform_admin`, criado pelo `PlatformAdminSeeder`). O `PlanSeeder` é só para desenvolvimento.
+- Operação, Asaas e problemas comuns: `docs/runbooks/cobranca.md`.
+
+## Páginas públicas e SEO
+
+- O tráfego principal é orgânico. Páginas públicas (`Welcome`, `Products/*`, `Docs/*`) passam por SSR. A lista fica em `PublicPagesSsrGateway::PUBLIC_COMPONENTS`, e o processo é o `inertia:start-ssr`. Nelas, nada de `window`/`document` fora de `useEffect`.
+- Título, descrição, canônico, Open Graph e JSON-LD saem do Blade via `->withViewData('seo', Seo)`, e não do `<Head>`, para funcionarem mesmo sem SSR. Conteúdo, perguntas frequentes e JSON-LD vêm de `App\Http\Seo\MarketingPages`: a pergunta que aparece na tela é a mesma do `FAQPage`.
+- Página pública nova: rota, `Seo`, entrada no `sitemap()` e componente na lista do SSR.
+
 ## Testes (quando houver)
 
 - Feature tests em `tests/Feature/<Module>/` — testam o fluxo HTTP → Service → DB.

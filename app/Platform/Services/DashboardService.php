@@ -50,18 +50,18 @@ class DashboardService
     private function billing(Tenant $tenant, array $charges): array
     {
         // A relação já filtra pelo tenant recebido.
-        $subscription = $tenant->subscription()->withoutTenantScope()->with('plan')->first();
-        $plan = $subscription?->plan;
+        $subscription = $tenant->subscription()->withoutTenantScope()->with('plans')->first();
+        $plans = $subscription?->plans ?? collect();
         $trial = $subscription?->status === TenantSubscription::STATUS_TRIAL;
         [$start, $end] = BillingPeriod::for($subscription);
 
-        $lines = array_values(array_filter([
-            $plan ? ['label' => "Plano {$plan->name}", 'cents' => $trial ? 0 : (int) $plan->price_cents] : null,
+        $lines = [
+            ...$plans->map(fn ($plan) => ['label' => "Plano {$plan->name}", 'cents' => $trial ? 0 : (int) $plan->pivot->price_cents])->all(),
             ...$charges,
-        ]));
+        ];
 
         return [
-            'plan' => $plan?->name,
+            'plan' => $subscription?->planNames() ?: null,
             'status' => $subscription?->status,
             'trial_ends_at' => $trial ? $subscription->trial_ends_at?->toIso8601String() : null,
             'period_start' => $start->toIso8601String(),

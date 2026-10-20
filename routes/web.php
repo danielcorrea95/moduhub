@@ -1,14 +1,19 @@
 <?php
 
+use App\Http\Controllers\Admin\PlanController as AdminPlanController;
 use App\Http\Controllers\ApiDocsController;
 use App\Http\Controllers\ApiKeyController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\InvitationController;
 use App\Http\Controllers\MemberController;
+use App\Http\Controllers\ProductPageController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\SeoFilesController;
 use App\Http\Controllers\WebhookEndpointController;
 use App\Http\Controllers\WorkspaceController;
+use App\Modules\Billing\Http\Controllers\AsaasWebhookController;
+use App\Modules\Billing\Http\Controllers\BillingController;
 use App\Modules\Invoices\Http\Controllers\InvoiceController as InvoicesController;
 use App\Modules\Invoices\Http\Controllers\IssuerController as InvoicesIssuerController;
 use App\Modules\Invoices\Http\Controllers\MunicipalAgreementController as InvoicesAgreementController;
@@ -30,10 +35,25 @@ Route::get('/', HomeController::class)->name('home');
 
 Route::get('/docs/api', ApiDocsController::class)->name('docs.api');
 
+// Páginas de produto, para quem chega pela busca. O endereço é o termo que as pessoas procuram.
+Route::get('/assinatura-eletronica', ProductPageController::class)->defaults('product', 'signatures')->name('products.signatures');
+Route::get('/emissor-nfse', ProductPageController::class)->defaults('product', 'invoices')->name('products.invoices');
+Route::get('/disparo-de-email', ProductPageController::class)->defaults('product', 'mailing')->name('products.mailing');
+
+// Para buscadores e robôs de IA. Gerados a cada acesso: os preços vêm dos planos do admin.
+Route::get('/sitemap.xml', [SeoFilesController::class, 'sitemap'])->name('sitemap');
+Route::get('/robots.txt', [SeoFilesController::class, 'robots'])->name('robots');
+Route::get('/llms.txt', [SeoFilesController::class, 'llms'])->name('llms');
+
 // Eventos do SES via SNS. Sem CSRF nem sessão de tenant: a assinatura da AWS autentica.
 Route::post('/webhooks/ses', SesWebhookController::class)
     ->withoutMiddleware(PreventRequestForgery::class)
     ->name('webhooks.ses');
+
+// Eventos de cobrança do Asaas. Sem CSRF nem sessão de tenant: o token do header autentica.
+Route::post('/webhooks/asaas', AsaasWebhookController::class)
+    ->withoutMiddleware(PreventRequestForgery::class)
+    ->name('webhooks.asaas');
 
 Route::get('/dashboard', DashboardController::class)
     ->middleware(['auth', 'verified'])
@@ -88,6 +108,16 @@ Route::middleware('auth')->group(function () {
 
     Route::post('/workspace/smtp-credentials', [SmtpCredentialController::class, 'store'])->name('smtp-credentials.store');
     Route::delete('/workspace/smtp-credentials/{credential}', [SmtpCredentialController::class, 'destroy'])->name('smtp-credentials.destroy');
+
+    Route::prefix('workspace/billing')->name('billing.')->controller(BillingController::class)->group(function () {
+        Route::get('/', 'show')->name('show');
+        // Cartão: poucas tentativas, para o formulário não virar teste de cartão roubado.
+        Route::post('/subscription', 'subscribe')->middleware('throttle:5,10')->name('subscribe');
+        Route::patch('/payment-method', 'changePaymentMethod')->middleware('throttle:5,10')->name('payment-method');
+        Route::patch('/plan', 'changePlan')->name('plan');
+        Route::delete('/subscription', 'cancel')->name('cancel');
+        Route::get('/payments/{payment}/pix', 'pix')->whereUlid('payment')->middleware('throttle:20,1')->name('pix');
+    });
 
     Route::get('/workspace/members', [MemberController::class, 'index'])->name('workspace.members');
     Route::post('/workspace/invitations', [MemberController::class, 'invite'])->name('workspace.invitations.store');
@@ -156,6 +186,15 @@ Route::middleware('auth')->group(function () {
             Route::post('/{invoice}/email', [InvoicesController::class, 'email'])->middleware('throttle:10,1')->name('email');
         });
     });
+});
+
+// Admin da plataforma (equipe da Moduhub). Fora de workspace: os planos valem para todos.
+Route::middleware(['auth', 'can:access-admin-panel'])->prefix('admin')->name('admin.')->group(function () {
+    Route::get('/planos', [AdminPlanController::class, 'index'])->name('plans.index');
+    Route::get('/planos/novo', [AdminPlanController::class, 'create'])->name('plans.create');
+    Route::post('/planos', [AdminPlanController::class, 'store'])->name('plans.store');
+    Route::get('/planos/{plan}/editar', [AdminPlanController::class, 'edit'])->name('plans.edit');
+    Route::put('/planos/{plan}', [AdminPlanController::class, 'update'])->name('plans.update');
 });
 
 require __DIR__.'/auth.php';

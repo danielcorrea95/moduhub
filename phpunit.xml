@@ -33,6 +33,7 @@
         <env name="CERTIFICATES_ENCRYPTION_KEY" value="base64:dGVzdGVzLWNoYXZlLWRvcy1jZXJ0aWZpY2Fkb3MtMzI="/>
         <env name="SESSION_DRIVER" value="array"/>
         <env name="PULSE_ENABLED" value="false"/>
+        <env name="INERTIA_SSR_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>
     </php>

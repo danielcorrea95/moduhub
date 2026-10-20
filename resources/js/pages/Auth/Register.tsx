@@ -5,7 +5,7 @@ import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
 import AuthLayout from '@/layouts/auth-layout';
 import { Head, Link, useForm } from '@inertiajs/react';
-import { MailCheck } from 'lucide-react';
+import { MailCheck, Sparkles } from 'lucide-react';
 import { useEffect, type FormEvent } from 'react';
 
 interface Invitation {
@@ -14,8 +14,17 @@ interface Invitation {
     tenant_name: string;
 }
 
+interface ChosenPlan {
+    key: string;
+    name: string;
+    price_cents: number;
+    trial_days: number;
+}
+
 interface Props {
     invitation?: Invitation | null;
+    /** Carrinho montado na página de vendas. */
+    plans?: ChosenPlan[];
     [key: string]: unknown;
 }
 
@@ -26,9 +35,13 @@ interface RegisterForm {
     password_confirmation: string;
     workspace_name: string;
     invitation_token: string;
+    plans: string[];
 }
 
-export default function Register({ invitation = null }: Props) {
+const money = (cents: number) =>
+    new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: cents % 100 === 0 ? 0 : 2 }).format(cents / 100);
+
+export default function Register({ invitation = null, plans = [] }: Props) {
     const { data, setData, post, processing, errors, reset } = useForm<RegisterForm>({
         name: '',
         email: invitation?.email ?? '',
@@ -36,6 +49,7 @@ export default function Register({ invitation = null }: Props) {
         password_confirmation: '',
         workspace_name: '',
         invitation_token: invitation?.token ?? '',
+        plans: plans.map((p) => p.key),
     });
 
     useEffect(() => {
@@ -67,6 +81,21 @@ export default function Register({ invitation = null }: Props) {
             }
         >
             <Head title="Criar conta" />
+
+            {plans.length > 0 && (
+                <div className="mb-5 flex gap-3 rounded-lg border border-primary/20 bg-accent px-3 py-2.5 text-sm text-accent-foreground">
+                    <Sparkles className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+                    <div>
+                        <p>
+                            {plans.map((p) => p.name).join(', ')}:{' '}
+                            <strong>{money(plans.reduce((sum, p) => sum + p.price_cents, 0))} por mês</strong>.
+                        </p>
+                        <p className="mt-0.5 opacity-80">
+                            Os primeiros {Math.max(...plans.map((p) => p.trial_days))} dias são grátis e não pedimos cartão agora.
+                        </p>
+                    </div>
+                </div>
+            )}
 
             {invitation && (
                 <div className="mb-5 flex gap-3 rounded-lg border border-primary/20 bg-accent px-3 py-2.5 text-sm text-accent-foreground">

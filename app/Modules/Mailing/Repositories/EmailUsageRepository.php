@@ -17,7 +17,7 @@ class EmailUsageRepository implements EmailUsageRepositoryContract
         return TenantSubscription::query()
             ->withoutTenantScope()
             ->where('tenant_id', $tenant->getKey())
-            ->with('plan.modules')
+            ->with('plans.modules')
             ->latest('id')
             ->first();
     }

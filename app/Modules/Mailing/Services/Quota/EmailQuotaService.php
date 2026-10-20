@@ -79,9 +79,9 @@ class EmailQuotaService
     private function limits(Tenant $tenant): array
     {
         $subscription = $this->usage->subscriptionFor($tenant);
-        $module = $subscription?->plan?->modules->firstWhere('key', Module::MAILING);
+        $terms = $subscription?->termsFor(Module::MAILING);
 
-        if ($module === null) {
+        if ($terms === null) {
             [$start, $end] = $this->calendarMonth();
 
             return [
@@ -96,9 +96,9 @@ class EmailQuotaService
         [$start, $end] = $this->subscriptionPeriod($subscription);
 
         return [
-            'plan' => $subscription->plan->name,
-            'daily' => $module->pivot->daily_quota,
-            'monthly' => $module->pivot->included_quota,
+            'plan' => $subscription->planFor(Module::MAILING)->name,
+            'daily' => $terms->daily_quota,
+            'monthly' => $terms->included_quota,
             'period_start' => $start,
             'period_end' => $end,
         ];

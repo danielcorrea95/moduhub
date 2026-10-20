@@ -13,8 +13,8 @@ class Module extends Model
 
     public const MAILING = 'mailing';
 
-    /** Módulos com telas prontas. Os demais aparecem como "em breve" no site e no painel. */
-    public const RELEASED = [self::SIGNATURES];
+    /** Módulos à venda. Os demais aparecem como "em breve" no site e no painel. */
+    public const RELEASED = [self::SIGNATURES, self::INVOICES, self::MAILING];
 
     public function isReleased(): bool
     {

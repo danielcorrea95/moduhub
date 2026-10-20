@@ -43,6 +43,9 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
+        // Cartão digitado no formulário de cobrança nunca volta para a sessão como "old input".
+        $exceptions->dontFlash(['card_number', 'card_cvv', 'card_expiry_month', 'card_expiry_year', 'card_holder_name']);
+
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request) => $request->is('api/*') || $request->expectsJson(),
         );

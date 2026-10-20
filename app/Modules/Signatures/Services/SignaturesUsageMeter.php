@@ -25,15 +25,15 @@ class SignaturesUsageMeter implements UsageMeterContract
             return null;
         }
 
-        $subscription = $tenant->subscription()->withoutTenantScope()->with('plan.modules')->first();
+        $subscription = $tenant->subscription()->withoutTenantScope()->with('plans.modules')->first();
         [$start, $end] = BillingPeriod::for($subscription);
-        $module = $subscription?->plan?->modules->firstWhere('key', Module::SIGNATURES);
+        $terms = $subscription?->termsFor(Module::SIGNATURES);
 
         return new UsageMeter(
             key: Module::SIGNATURES,
             label: 'Assinaturas',
             used: $this->documents->countSentBetween($tenant->getKey(), $start, $end),
-            limit: $module?->pivot?->included_quota,
+            limit: $terms?->included_quota,
             resetsAt: $end,
         );
     }

@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Modules\Billing\Contracts\SubscriptionRepositoryContract;
 use App\Tenancy\CurrentTenant;
 use Closure;
 use Illuminate\Http\Request;
@@ -9,7 +10,10 @@ use Symfony\Component\HttpFoundation\Response;
 
 class EnsureModuleActive
 {
-    public function __construct(protected CurrentTenant $currentTenant) {}
+    public function __construct(
+        protected CurrentTenant $currentTenant,
+        protected SubscriptionRepositoryContract $subscriptions,
+    ) {}
 
     public function handle(Request $request, Closure $next, string $moduleKey): Response
     {
@@ -23,6 +27,14 @@ class EnsureModuleActive
             return response()->json([
                 'message' => "Module [{$moduleKey}] is not active for this tenant.",
                 'module' => $moduleKey,
+            ], 402);
+        }
+
+        // Sem pagamento a API só lê, como o painel.
+        if (! $request->isMethodSafe() && $this->subscriptions->current($tenant)?->isBlocked()) {
+            return response()->json([
+                'message' => 'Workspace blocked for non-payment. Read-only until the subscription is settled.',
+                'code' => 'subscription_blocked',
             ], 402);
         }
 

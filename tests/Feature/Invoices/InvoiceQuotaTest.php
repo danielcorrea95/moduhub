@@ -86,11 +86,10 @@ class InvoiceQuotaTest extends TestCase
 
         TenantSubscription::create([
             'tenant_id' => $this->tenant->getKey(),
-            'plan_id' => $plan->id,
             'status' => $status,
             'current_period_start' => now()->subDays(3),
             'current_period_end' => now()->addDays(27),
-        ]);
+        ])->plans()->attach($plan->id, ['tenant_id' => $this->tenant->getKey(), 'price_cents' => $plan->price_cents]);
     }
 
     private function key(): string

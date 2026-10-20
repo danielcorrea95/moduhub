@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Auth\RegisterUserRequest;
 use App\Platform\Contracts\InvitationRepositoryContract;
+use App\Platform\Contracts\PlanRepositoryContract;
 use App\Platform\Contracts\RegistrationServiceContract;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -17,6 +18,7 @@ class RegisteredUserController extends Controller
     public function __construct(
         protected RegistrationServiceContract $registration,
         protected InvitationRepositoryContract $invitations,
+        protected PlanRepositoryContract $plans,
     ) {}
 
     public function create(Request $request): Response
@@ -33,8 +35,18 @@ class RegisteredUserController extends Controller
             }
         }
 
+        // ?plans=assinaturas-starter,nfse-100 vem do carrinho da página de vendas.
+        $keys = array_filter(explode(',', (string) $request->query('plans', '')));
+        $plans = $invitation === null && $keys !== [] ? $this->plans->findManyForSaleByKeys($keys) : collect();
+
         return Inertia::render('Auth/Register', [
             'invitation' => $invitation,
+            'plans' => $plans->map(fn ($plan) => [
+                'key' => $plan->key,
+                'name' => $plan->name,
+                'price_cents' => (int) $plan->price_cents,
+                'trial_days' => (int) $plan->trial_days,
+            ])->values(),
         ]);
     }
 

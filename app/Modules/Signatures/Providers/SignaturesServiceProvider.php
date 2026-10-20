@@ -18,6 +18,7 @@ use App\Modules\Signatures\Repositories\SignerRepository;
 use App\Modules\Signatures\Services\DocumentService;
 use App\Modules\Signatures\Services\DocumentSubmissionService;
 use App\Modules\Signatures\Services\SignatureService;
+use App\Modules\Signatures\Services\SignaturesBillableUsage;
 use App\Modules\Signatures\Services\SignaturesDashboardSection;
 use App\Modules\Signatures\Services\SignaturesUsageMeter;
 use App\Modules\Signatures\Services\SignerService;
@@ -41,6 +42,7 @@ class SignaturesServiceProvider extends ServiceProvider
     {
         $this->app->tag([SignaturesUsageMeter::class], 'usage-meters');
         $this->app->tag([SignaturesDashboardSection::class], 'dashboard-sections');
+        $this->app->tag([SignaturesBillableUsage::class], 'billable-usage');
     }
 
     public function boot(): void

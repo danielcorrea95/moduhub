@@ -30,11 +30,10 @@ class PlanUsageTest extends TestCase
         }
         TenantSubscription::withoutGlobalScopes()->create([
             'tenant_id' => $tenant->getKey(),
-            'plan_id' => $plan->getKey(),
             'status' => TenantSubscription::STATUS_ACTIVE,
             'current_period_start' => now()->subDays(5),
             'current_period_end' => now()->addDays(25),
-        ]);
+        ])->plans()->attach($plan->getKey(), ['tenant_id' => $tenant->getKey(), 'price_cents' => $plan->price_cents]);
 
         $this->document($tenant, sentAt: now()->subDay());
         $this->document($tenant, sentAt: now()->subDays(10));

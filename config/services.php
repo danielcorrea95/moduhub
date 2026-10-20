@@ -33,6 +33,16 @@ return [
         'identity_driver' => env('SES_IDENTITY_DRIVER', env('MAIL_MAILER') === 'ses-v2' ? 'ses' : 'fake'),
     ],
 
+    'asaas' => [
+        // asaas (API) ou fake (dev e testes).
+        'driver' => env('ASAAS_DRIVER', 'fake'),
+        'api_key' => env('ASAAS_API_KEY'),
+        'base_url' => env('ASAAS_BASE_URL', 'https://api-sandbox.asaas.com/v3'),
+        // Conferido no header asaas-access-token de /webhooks/asaas. Vazio = webhook recusa tudo.
+        'webhook_token' => env('ASAAS_WEBHOOK_TOKEN'),
+        'grace_days' => (int) env('BILLING_GRACE_DAYS', 7),
+    ],
+
     'slack' => [
         'notifications' => [
             'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),

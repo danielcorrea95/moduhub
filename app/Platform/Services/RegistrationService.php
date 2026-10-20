@@ -46,6 +46,7 @@ class RegistrationService implements RegistrationServiceContract
 
             $tenant = $this->tenants->create($user, [
                 'name' => ($attrs['workspace_name'] ?? null) ?: ($user->name . "'s workspace"),
+                'plan_keys' => $attrs['plans'] ?? [],
             ]);
 
             return ['user' => $user, 'tenant_id' => $tenant->getKey()];

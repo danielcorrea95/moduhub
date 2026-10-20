@@ -1,10 +1,9 @@
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
+{{-- O site é só em português; o locale da aplicação não muda o idioma da página. --}}
+<html lang="pt-BR">
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
-
-        <title inertia>{{ config('app.name', 'Laravel') }}</title>
 
         <link rel="icon" href="/favicon.ico" sizes="48x48">
         <link rel="icon" href="/favicon.svg" type="image/svg+xml">
@@ -25,6 +24,30 @@
         @viteReactRefresh
         @vite(['resources/js/app.tsx', "resources/js/pages/{$page['component']}.tsx"])
         @inertiaHead
+        {{-- Com SSR o título vem do @inertiaHead; sem ele (painel, ou Node fora do ar), daqui. --}}
+        @if (empty($__inertiaSsrResponse))
+            <title inertia>{{ isset($seo) ? $seo->fullTitle() : config('app.name', 'Moduhub') }}</title>
+        @endif
+        @isset($seo)
+            <meta name="description" content="{{ $seo->description }}">
+            <link rel="canonical" href="{{ $seo->canonical() }}">
+            @unless ($seo->index)
+                <meta name="robots" content="noindex">
+            @endunless
+            <meta property="og:type" content="website">
+            <meta property="og:locale" content="pt_BR">
+            <meta property="og:site_name" content="{{ \App\Http\Seo\Seo::SITE_NAME }}">
+            <meta property="og:title" content="{{ $seo->fullTitle() }}">
+            <meta property="og:description" content="{{ $seo->description }}">
+            <meta property="og:url" content="{{ $seo->canonical() }}">
+            <meta property="og:image" content="{{ $seo->imageUrl() }}">
+            <meta property="og:image:width" content="1200">
+            <meta property="og:image:height" content="630">
+            <meta name="twitter:card" content="summary_large_image">
+            @if ($json = $seo->jsonLdScript())
+                <script type="application/ld+json">{!! $json !!}</script>
+            @endif
+        @endisset
     </head>
     <body class="font-sans">
         @inertia
