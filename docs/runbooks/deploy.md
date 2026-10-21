@@ -154,6 +154,8 @@ INVOICES_SEFIN_DRIVER=http
 INVOICES_SEFIN_TIMEOUT=30
 
 # Certificados (docs/runbooks/certificados.md)
+SIGNATURES_PLATFORM_CNPJ=00.000.000/0001-00   # CNPJ da Moduhub: o certificado enviado em /admin/certificado precisa ser dele
+# Opcional: reserva no servidor, usada só quando o painel não tem certificado
 SIGNATURES_PLATFORM_CERT_PATH=/caminho/seguro/moduhub.pfx   # fora de public/, legível só pelo usuário do PHP
 SIGNATURES_PLATFORM_CERT_PASSWORD=...
 SIGNATURES_PLATFORM_CERT_ALERT_EMAILS=financeiro@...,tecnico@...
@@ -228,6 +230,7 @@ Depois do primeiro deploy com o módulo de e-mail:
 - [ ] `https://<APP_URL>/robots.txt` e `https://<APP_URL>/sitemap.xml` respondem com o domínio de produção.
 - [ ] Login e tela inicial abrem sem erro. Como proprietário, aparecem "Sua conta na Moduhub" e os alertas.
 - [ ] **Workspace → Domínio de envio:** mande um teste para o seu e-mail. Em segundos, **E-mail → Enviados → Mensagens** mostra *Entregue*. Isso prova que o SNS está chegando. Ao abrir o e-mail, aparece *Aberto*.
+- [ ] **Admin → Certificado:** envie o e-CNPJ da Moduhub (primeiro deploy ou renovação). O aviso chega em `SIGNATURES_PLATFORM_CERT_ALERT_EMAILS` e a tela mostra o titular e a validade.
 - [ ] Envie um documento para assinatura e confira que o convite chegou.
 - [ ] Emita uma NFS-e em produção restrita (ou baixe o XML e o DANFSe de uma existente), para validar S3 e certificado.
 - [ ] `php artisan schedule:list` mostra as seis tarefas.

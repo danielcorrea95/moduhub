@@ -49,7 +49,7 @@ class PlatformCertificateMonitor
 
         return $this->alert(
             "Certificado da plataforma ({$certificate->subjectCn}) vence em {$daysLeft} dia(s), em {$certificate->validTo->format('d/m/Y')}. "
-            .'Renove o e-CNPJ A1 e troque o arquivo e a senha no servidor (SIGNATURES_PLATFORM_CERT_PATH e SIGNATURES_PLATFORM_CERT_PASSWORD).',
+            .'Renove o e-CNPJ A1 e envie o novo em Admin → Certificado da plataforma.',
             critical: $daysLeft <= 7,
         );
     }

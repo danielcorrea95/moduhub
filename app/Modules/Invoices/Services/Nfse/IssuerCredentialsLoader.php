@@ -4,11 +4,15 @@ namespace App\Modules\Invoices\Services\Nfse;
 
 use App\Modules\Invoices\Models\Issuer;
 use App\Modules\Invoices\Services\CertificateAuditService;
+use App\Modules\Signatures\Services\PlatformCertificateService;
 use Illuminate\Validation\ValidationException;
 
 class IssuerCredentialsLoader
 {
-    public function __construct(protected CertificateAuditService $audit) {}
+    public function __construct(
+        protected CertificateAuditService $audit,
+        protected PlatformCertificateService $platformCertificate,
+    ) {}
 
     /**
      * Abre a chave privada do emitente. A finalidade é obrigatória e fica na trilha de auditoria:
@@ -46,14 +50,9 @@ class IssuerCredentialsLoader
      */
     public function platform(): ?IssuerCredentials
     {
-        $path = (string) config('signatures.seal.certificate_path');
-        $password = config('signatures.seal.certificate_password');
+        $pkcs12 = $this->platformCertificate->pkcs12();
 
-        if ($password === null || ! is_readable($path)) {
-            return null;
-        }
-
-        return $this->fromPkcs12((string) file_get_contents($path), (string) $password);
+        return $pkcs12 === null ? null : $this->fromPkcs12($pkcs12->binary, $pkcs12->password);
     }
 
     public function fromPkcs12(string $pfx, #[\SensitiveParameter] string $password): ?IssuerCredentials

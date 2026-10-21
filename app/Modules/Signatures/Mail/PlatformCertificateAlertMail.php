@@ -9,11 +9,14 @@ use Illuminate\Mail\Mailables\Envelope;
 /** Alerta interno, para quem opera a plataforma: texto simples basta. */
 class PlatformCertificateAlertMail extends Mailable
 {
-    public function __construct(public string $alert) {}
+    public function __construct(
+        public string $alert,
+        public string $alertSubject = '[Moduhub] Certificado da plataforma precisa de atenção',
+    ) {}
 
     public function envelope(): Envelope
     {
-        return new Envelope(subject: '[Moduhub] Certificado da plataforma precisa de atenção');
+        return new Envelope(subject: $this->alertSubject);
     }
 
     public function content(): Content

@@ -20,7 +20,7 @@ import { Link, usePage } from '@inertiajs/react';
 import {
     AtSign,
     BookOpen,
-    Building2, CreditCard, Inbox, MapPinned, Tags,
+    Building2, CreditCard, FileKey2, Inbox, MapPinned, Tags,
     FileSignature,
     House,
     KeyRound,
@@ -58,6 +58,12 @@ function useNavGroups(): NavGroup[] {
                     href: route('admin.plans.index'),
                     icon: Tags,
                     isActive: current('admin.plans.*'),
+                },
+                {
+                    title: 'Certificado',
+                    href: route('admin.platform-certificate.index'),
+                    icon: FileKey2,
+                    isActive: current('admin.platform-certificate.*'),
                 },
             ],
         });

@@ -22,11 +22,12 @@ class PlatformSealService
         protected IcpCertificateService $icp,
         protected PdfComposer $composer,
         protected PdfSigner $signer,
+        protected PlatformCertificateService $platformCertificate,
     ) {}
 
     public function isConfigured(): bool
     {
-        return filled(config('signatures.seal.certificate_password'));
+        return $this->platformCertificate->isConfigured();
     }
 
     /**
@@ -92,14 +93,15 @@ class PlatformSealService
             return $this->certificate;
         }
 
-        $path = (string) config('signatures.seal.certificate_path');
-        $binary = is_file($path) ? file_get_contents($path) : false;
+        $pkcs12 = $this->platformCertificate->pkcs12();
 
-        if ($binary === false) {
-            throw new RuntimeException("Certificado da plataforma não encontrado em {$path}.");
+        if ($pkcs12 === null) {
+            $path = (string) config('signatures.seal.certificate_path');
+
+            throw new RuntimeException("Certificado da plataforma não encontrado: nenhum enviado pelo painel nem em {$path}.");
         }
 
-        return $this->certificate = $this->icp->parse($binary, (string) config('signatures.seal.certificate_password'));
+        return $this->certificate = $this->icp->parse($pkcs12->binary, $pkcs12->password);
     }
 
     protected function buildUnsealed(Document $document): void

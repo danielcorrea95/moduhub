@@ -6,9 +6,10 @@ Para quem opera a Moduhub. Cobre onde ficam os certificados e as senhas, a rotin
 
 | Segredo | Onde fica | Protegido por |
 |---|---|---|
-| e-CNPJ A1 da Moduhub (selo dos documentos, consulta de convênios no ADN) | arquivo em `SIGNATURES_PLATFORM_CERT_PATH` | senha em `SIGNATURES_PLATFORM_CERT_PASSWORD` (`.env`) |
+| e-CNPJ A1 da Moduhub (selo dos documentos, consulta de convênios no ADN), enviado em **Admin › Certificado** | `platform_certificates.pfx` e `password` (só a linha atual; as antigas têm os dois apagados) | AES-256 com `CERTIFICATES_ENCRYPTION_KEY` (`.env`) |
+| Reserva do anterior, usada só quando o painel não tem nenhum | arquivo em `SIGNATURES_PLATFORM_CERT_PATH` | senha em `SIGNATURES_PLATFORM_CERT_PASSWORD` (`.env`) |
 | e-CNPJ A1 de cada emitente de NFS-e, e a senha dele | `invoice_issuers.certificate_pfx` e `certificate_password` | AES-256 com `CERTIFICATES_ENCRYPTION_KEY` (`.env`) |
-| Chave que cifra os certificados dos emitentes | `CERTIFICATES_ENCRYPTION_KEY` | acesso ao servidor e ao gerenciador de segredos |
+| Chave que cifra os certificados dos emitentes e o da plataforma | `CERTIFICATES_ENCRYPTION_KEY` | acesso ao servidor e ao gerenciador de segredos |
 
 `CERTIFICATES_ENCRYPTION_KEY` é diferente da `APP_KEY` de propósito: vazar a `APP_KEY` não abre os certificados.
 
@@ -34,12 +35,34 @@ ORDER BY created_at DESC;
 
 ## Renovar o certificado da Moduhub
 
+Pelo painel, que é o caminho normal:
+
 1. Compre e emita o e-CNPJ A1 novo na certificadora.
-2. Copie o `.pfx` para o servidor, fora da pasta da aplicação, com dono root, grupo do PHP da Moduhub e permissão `0440`.
-3. Atualize `SIGNATURES_PLATFORM_CERT_PATH` e `SIGNATURES_PLATFORM_CERT_PASSWORD`.
-4. Rode `php artisan config:cache`, depois `php artisan signatures:check-platform-certificate`, e confira se a saída diz "sem pendências".
-5. Reinicie os workers com `php artisan queue:restart`.
-6. Apague o `.pfx` antigo do servidor.
+2. Entre como admin da plataforma em **Admin › Certificado** (`/admin/certificado`), envie o `.pfx`, a senha dele e a senha da sua conta.
+3. Só entra e-CNPJ emitido dentro da ICP-Brasil (cadeia até uma raiz do ITI, ver abaixo) e com a raiz do CNPJ em `SIGNATURES_PLATFORM_CNPJ` (matriz ou filial). Sem essa variável a tela recusa o envio.
+4. Confira o e-mail de aviso em `SIGNATURES_PLATFORM_CERT_ALERT_EMAILS` e rode `php artisan signatures:check-platform-certificate`, que deve dizer "sem pendências". Não precisa reiniciar workers: o certificado é lido do banco a cada documento.
+5. Apague o `.pfx` do seu computador.
+
+O certificado anterior sai de uso na hora, com arquivo e senha apagados do banco. O histórico (quem enviou, quem trocou, de qual IP) fica na mesma tela e na tabela `platform_certificates`. Remover pelo painel volta para o certificado do servidor, se houver.
+
+Pelo servidor, só como reserva (o do painel vale sobre este):
+
+1. Copie o `.pfx` para fora da pasta da aplicação, com dono root, grupo do PHP da Moduhub e permissão `0440`.
+2. Atualize `SIGNATURES_PLATFORM_CERT_PATH` e `SIGNATURES_PLATFORM_CERT_PASSWORD`, rode `php artisan config:cache` e `php artisan queue:restart`.
+3. Apague o `.pfx` antigo do servidor.
+
+**Troca que ninguém reconhece** (e-mail de aviso inesperado): trate como invasão da conta de admin. Troque a senha da conta indicada no aviso, tire `is_platform_admin` dela se for preciso, envie de novo o certificado certo e veja no histórico o IP de quem trocou. A tela nunca mostra nem devolve o `.pfx` ou a senha, então a conta invadida não vaza a chave. O risco é o selo ficar fora do ar.
+
+## Raízes da ICP-Brasil
+
+O envio pelo painel confere a cadeia contra `resources/certificates/icp-brasil/roots.pem` (AC Raiz v5, v6, v7, v10, v11, v12 e v13, baixadas em 2026-10-21). As ACs intermediárias em `intermediates.pem` só servem para montar o caminho quando o `.pfx` vem sem a cadeia, e não são confiáveis por si só. Revogação (LCR) não é consultada.
+
+Atualize quando o ITI publicar uma raiz nova ou quando o painel recusar um e-CNPJ legítimo por causa da cadeia. A v5 vence em 02/03/2029.
+
+1. Baixe `https://acraiz.icpbrasil.gov.br/credenciadas/CertificadosAC-ICP-Brasil/ACcompactado.zip` e cada raiz pelo link da página "Repositório AC-Raiz" do ITI no gov.br.
+2. Confira se as raízes do pacote são idênticas às baixadas pelo link da página (`openssl x509 -noout -fingerprint -sha256`).
+3. Em `roots.pem` ficam só as raízes ainda válidas. Em `intermediates.pem` fica o resto do pacote, sem os vencidos. Cada bloco leva o comentário com o titular, a impressão digital SHA-256 e o vencimento.
+4. O teste `test_bundled_icp_brasil_chain_closes_at_the_iti_roots` confere se toda intermediária fecha numa raiz. Rode-o antes do commit.
 
 ## Incidente: certificado de um cliente pode ter vazado
 
@@ -54,7 +77,7 @@ Sinais: o cliente vê no histórico um uso que não reconhece, ou avisa que o `.
 ## Incidente: certificado da Moduhub vazou
 
 1. Peça a revogação na certificadora imediatamente.
-2. Emita um certificado novo e siga a seção [Renovar o certificado da Moduhub](#renovar-o-certificado-da-moduhub).
+2. Emita um certificado novo e siga a seção [Renovar o certificado da Moduhub](#renovar-o-certificado-da-moduhub). Enquanto o novo não chega, remova o revogado em **Admin › Certificado** (e do servidor, se estiver lá).
 3. Documentos selados com o certificado revogado continuam com o selo da data em que foram assinados. Novos documentos só saem com selo depois da troca. Enquanto ela não acontece, eles saem sem selo e o log registra `critical`.
 
 ## Incidente: `CERTIFICATES_ENCRYPTION_KEY` vazou ou o servidor foi invadido

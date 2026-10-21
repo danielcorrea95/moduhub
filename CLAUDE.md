@@ -81,6 +81,7 @@ app/Modules/<ModuleName>/
 ## Certificados digitais
 
 - O `.pfx` e a senha do emitente usam o cast `CertificateEncrypted` (chave `CERTIFICATES_ENCRYPTION_KEY`, nunca a `APP_KEY`) e nunca saem em Resource, log ou resposta.
+- O e-CNPJ da Moduhub (selo e ADN) é enviado em `/admin/certificado` (`platform_certificates`, mesmo cast) e só aceita e-CNPJ com cadeia até as raízes do ITI (`IcpChainValidator`, `resources/certificates/icp-brasil/`) e com a raiz de `SIGNATURES_PLATFORM_CNPJ`. O `.env` (`SIGNATURES_PLATFORM_CERT_PATH`) é só reserva. Quem precisa do certificado lê por `PlatformCertificateService::pkcs12()`, nunca do arquivo direto.
 - A chave privada do cliente só é aberta por `IssuerCredentialsLoader::load($issuer, CertificateEvent::PURPOSE_*)`, que grava o uso na trilha `invoice_certificate_events`. Uso novo = finalidade nova em `CertificateEvent`, não um atalho que pule o `load()`.
 - Operação, vencimento e incidentes: `docs/runbooks/certificados.md`.
 

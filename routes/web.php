@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin\PlanController as AdminPlanController;
+use App\Http\Controllers\Admin\PlatformCertificateController as AdminPlatformCertificateController;
 use App\Http\Controllers\ApiDocsController;
 use App\Http\Controllers\ApiKeyController;
 use App\Http\Controllers\DashboardController;
@@ -195,6 +196,13 @@ Route::middleware(['auth', 'can:access-admin-panel'])->prefix('admin')->name('ad
     Route::post('/planos', [AdminPlanController::class, 'store'])->name('plans.store');
     Route::get('/planos/{plan}/editar', [AdminPlanController::class, 'edit'])->name('plans.edit');
     Route::put('/planos/{plan}', [AdminPlanController::class, 'update'])->name('plans.update');
+
+    Route::get('/certificado', [AdminPlatformCertificateController::class, 'index'])->name('platform-certificate.index');
+    // Limite baixo: as duas pedem a senha da conta, e ninguém troca o certificado mais que uma vez por ano.
+    Route::middleware('throttle:5,1')->group(function () {
+        Route::post('/certificado', [AdminPlatformCertificateController::class, 'store'])->name('platform-certificate.store');
+        Route::delete('/certificado', [AdminPlatformCertificateController::class, 'destroy'])->name('platform-certificate.destroy');
+    });
 });
 
 require __DIR__.'/auth.php';

@@ -6,6 +6,7 @@ use App\Modules\Signatures\Console\CheckPlatformCertificate;
 use App\Modules\Signatures\Contracts\DocumentRepositoryContract;
 use App\Modules\Signatures\Contracts\DocumentServiceContract;
 use App\Modules\Signatures\Contracts\DocumentSubmissionServiceContract;
+use App\Modules\Signatures\Contracts\PlatformCertificateRepositoryContract;
 use App\Modules\Signatures\Contracts\SignatureRepositoryContract;
 use App\Modules\Signatures\Contracts\SignatureServiceContract;
 use App\Modules\Signatures\Contracts\SignerRepositoryContract;
@@ -13,6 +14,7 @@ use App\Modules\Signatures\Contracts\SignerServiceContract;
 use App\Modules\Signatures\Models\Document;
 use App\Modules\Signatures\Policies\DocumentPolicy;
 use App\Modules\Signatures\Repositories\DocumentRepository;
+use App\Modules\Signatures\Repositories\PlatformCertificateRepository;
 use App\Modules\Signatures\Repositories\SignatureRepository;
 use App\Modules\Signatures\Repositories\SignerRepository;
 use App\Modules\Signatures\Services\DocumentService;
@@ -36,6 +38,7 @@ class SignaturesServiceProvider extends ServiceProvider
         SignerServiceContract::class => SignerService::class,
         SignatureRepositoryContract::class => SignatureRepository::class,
         SignatureServiceContract::class => SignatureService::class,
+        PlatformCertificateRepositoryContract::class => PlatformCertificateRepository::class,
     ];
 
     public function register(): void
