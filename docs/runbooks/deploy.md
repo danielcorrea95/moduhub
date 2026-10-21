@@ -82,6 +82,7 @@ Se a produção ainda não recebeu os commits anteriores (S3 e certificados), si
    - Escuta em `127.0.0.1:13714` (`INERTIA_SSR_URL`); não exponha essa porta.
    - Se o processo cair, o site continua no ar, só que renderizado no navegador. Título, descrição e JSON-LD continuam no HTML, porque saem do Blade. O texto da página some para os robôs até o processo voltar.
    - Depois de cada `npm run build`, rode `php artisan inertia:stop-ssr`. O Supervisor sobe o processo de novo com o bundle novo.
+   - Exemplo pronto para a fila e o SSR: [supervisor/moduhub.conf](supervisor/moduhub.conf). As instruções de instalação estão no topo do arquivo.
 4. **Agendador:** uma linha no cron.
 
    ```cron
