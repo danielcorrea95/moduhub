@@ -68,6 +68,7 @@ Se a produção ainda não recebeu os commits anteriores (S3 e certificados), si
 | PHP | 8.4 ou mais novo (o desenvolvimento roda em 8.5). Extensões: `bcmath`, `curl`, `dom`, `gd` ou `imagick`, `intl`, `mbstring`, `openssl`, `pdo_mysql`, `xml`, `zip`, `fileinfo`. |
 | Banco | MySQL 8. Os relatórios usam `CONVERT_TZ` com offset fixo (`-03:00`), que não depende das tabelas de fuso do MySQL. |
 | Node | Só para o build (`npm ci && npm run build`). Não precisa rodar no servidor se o build vier pronto. |
+| nginx | `fastcgi_buffer_size 16k; fastcgi_buffers 16 16k;` no `location ~ \.php$`. O padrão de 4 KB não comporta o cabeçalho `Link` de preload somado aos cookies: o PHP responde e o nginx devolve 502 (`upstream sent too big header` no `error.log`). O app já limita o `Link` a 8 assets; o buffer maior é a folga. |
 | HTTPS | Obrigatório. O SNS só entrega eventos do SES em `https://`, e a assinatura de documentos exige conexão segura. |
 | Fuso do app | `UTC` (já fixo em `config/app.php`). Datas de negócio (dia da cota, mês das notas) usam Brasília no código. |
 

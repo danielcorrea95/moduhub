@@ -20,7 +20,9 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->web(append: [
             \App\Http\Middleware\SetCurrentTenantFromSession::class,
             \App\Http\Middleware\HandleInertiaRequests::class,
-            \Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets::class,
+            // Sem limite, o Link com todos os chunks da página passa de 3,5 KB e, somado aos cookies,
+            // estoura o buffer de cabeçalho do nginx (4 KB): 502 no F5. O HTML já traz os preloads.
+            \Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets::using(8),
         ]);
 
         // O tenant precisa estar resolvido antes do route model binding: sem tenant o TenantScope não

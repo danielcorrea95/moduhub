@@ -74,6 +74,7 @@ class PlatformSealTest extends TestCase
         $pdf = $this->finalPdf($document);
         $this->assertTrue($pdf['signed']);
         $this->assertPkcs7FitsInPdf($pdf['content']);
+        $this->assertCadesSignatureCoversPdf($pdf['content']);
         $this->assertSame(hash('sha256', $pdf['content']), $document->final_file_hash);
 
         $finalized = DocumentEvent::where('document_id', $document->getKey())
@@ -253,7 +254,7 @@ class PlatformSealTest extends TestCase
 
         return [
             'content' => $content,
-            'signed' => str_contains($content, '/adbe.pkcs7.detached') && str_contains($content, '/ByteRange'),
+            'signed' => str_contains($content, '/ETSI.CAdES.detached') && str_contains($content, '/ByteRange'),
         ];
     }
 
@@ -276,6 +277,32 @@ class PlatformSealTest extends TestCase
 
         $this->assertGreaterThan(5871, $length, 'A cadeia de teste deveria gerar um PKCS#7 maior que o padrão do TCPDF.');
         $this->assertLessThanOrEqual(strlen($hex), (2 + $lengthBytes + $length) * 2, 'PKCS#7 truncado no PDF.');
+    }
+
+    /** O verificador do ITI só aceita a assinatura com o atributo signing-certificate-v2 (PAdES). */
+    private function assertCadesSignatureCoversPdf(string $pdf): void
+    {
+        preg_match('/\/ByteRange\s*\[\s*(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s*\]/', $pdf, $m);
+        [, $start1, $length1, $start2, $length2] = array_map('intval', $m);
+        // A reserva de /Contents vem completada com zeros: corta no tamanho do cabeçalho DER (30 82 xx xx).
+        $der = hex2bin(trim(substr($pdf, $length1, $start2 - $length1), '<>'));
+        $der = substr($der, 0, 4 + ((ord($der[2]) << 8) | ord($der[3])));
+
+        $signingCertificateV2 = hex2bin('060b2a864886f70d010910022f');
+        $this->assertStringContainsString($signingCertificateV2, $der, 'CMS sem signing-certificate-v2.');
+
+        $files = [tempnam(sys_get_temp_dir(), 't'), tempnam(sys_get_temp_dir(), 't')];
+        file_put_contents($files[0], $der);
+        file_put_contents($files[1], substr($pdf, $start1, $length1) . substr($pdf, $start2, $length2));
+
+        try {
+            $this->assertTrue(
+                openssl_cms_verify($files[1], OPENSSL_CMS_NOVERIFY | OPENSSL_CMS_BINARY | OPENSSL_CMS_DETACHED, null, [], null, null, null, $files[0], OPENSSL_ENCODING_DER),
+                'Assinatura não confere com o ByteRange: ' . openssl_error_string(),
+            );
+        } finally {
+            array_map('unlink', $files);
+        }
     }
 
     private function pdf(): string

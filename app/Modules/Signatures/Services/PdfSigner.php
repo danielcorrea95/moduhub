@@ -2,10 +2,14 @@
 
 namespace App\Modules\Signatures\Services;
 
+use RuntimeException;
 use setasign\Fpdi\Tcpdf\Fpdi;
 
 class PdfSigner
 {
+    /** CMS_CADES do OpenSSL 3: o PHP repassa a flag e o CMS sai com signing-certificate-v2. */
+    protected const CMS_CADES = 0x100000;
+
     /**
      * Re-imports $sourceAbsolute via FPDI and outputs a PKCS#7-signed copy
      * at $destinationAbsolute. The visual content is unchanged — only the
@@ -58,11 +62,67 @@ class PdfSigner
             );
 
             $pdf->Output($destinationAbsolute, 'F');
+
+            $this->resignAsCades($destinationAbsolute, $cert, $chainFile);
         } finally {
             if ($chainFile !== null) {
                 @unlink($chainFile);
             }
         }
+    }
+
+    /**
+     * O TCPDF assina com openssl_pkcs7_sign, que não grava o atributo signing-certificate-v2. Sem ele a
+     * assinatura não é PAdES, e o verificador do ITI recusa o arquivo. Aproveitamos o PDF e a reserva de
+     * /Contents do TCPDF e trocamos só o CMS, agora em modo CAdES. O SubFilter novo tem o mesmo tamanho
+     * do antigo, então o /ByteRange continua valendo.
+     */
+    protected function resignAsCades(string $pdfPath, IcpCertificate $cert, ?string $chainFile): void
+    {
+        $pdf = file_get_contents($pdfPath);
+
+        if (! preg_match('/\/ByteRange\s*\[\s*(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s*\]/', $pdf, $m)) {
+            throw new RuntimeException('PDF assinado sem /ByteRange.');
+        }
+        [, $start1, $length1, $start2, $length2] = array_map('intval', $m);
+
+        $pdf = str_replace('/SubFilter /adbe.pkcs7.detached', '/SubFilter /ETSI.CAdES.detached', $pdf);
+
+        $content = tempnam(sys_get_temp_dir(), 'mdhb_cades_in_');
+        $signature = tempnam(sys_get_temp_dir(), 'mdhb_cades_out_');
+
+        try {
+            file_put_contents($content, substr($pdf, $start1, $length1) . substr($pdf, $start2, $length2));
+
+            $signed = openssl_cms_sign(
+                $content,
+                $signature,
+                $cert->certPem,
+                $cert->privateKeyPem,
+                [],
+                OPENSSL_CMS_DETACHED | OPENSSL_CMS_BINARY | self::CMS_CADES,
+                OPENSSL_ENCODING_DER,
+                $chainFile,
+            );
+
+            if (! $signed) {
+                throw new RuntimeException('Falha ao gerar o CMS CAdES: ' . openssl_error_string());
+            }
+
+            $hex = bin2hex(file_get_contents($signature));
+        } finally {
+            @unlink($content);
+            @unlink($signature);
+        }
+
+        // Entre os dois trechos assinados fica "<" + reserva em hexadecimal + ">".
+        $reserved = $start2 - ($start1 + $length1) - 2;
+        if (strlen($hex) > $reserved) {
+            throw new RuntimeException('O CMS CAdES não coube na reserva de /Contents do PDF.');
+        }
+
+        $pdf = substr_replace($pdf, str_pad($hex, $reserved, '0'), $start1 + $length1 + 1, $reserved);
+        file_put_contents($pdfPath, $pdf);
     }
 
     protected function writeChainFile(IcpCertificate $cert): ?string
