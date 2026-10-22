@@ -65,7 +65,8 @@ Se a produção ainda não recebeu os commits anteriores (S3 e certificados), si
 
 | Item | Exigência |
 |---|---|
-| PHP | 8.4 ou mais novo (o desenvolvimento roda em 8.5). Extensões: `bcmath`, `curl`, `dom`, `gd` ou `imagick`, `intl`, `mbstring`, `openssl`, `pdo_mysql`, `xml`, `zip`, `fileinfo`. |
+| PHP | 8.4 ou mais novo (o desenvolvimento roda em 8.5), com a última correção de segurança da linha: no mínimo 8.4.27 (RCE de out/2026). Extensões: `bcmath`, `curl`, `dom`, `gd` ou `imagick`, `intl`, `mbstring`, `openssl`, `pdo_mysql`, `xml`, `zip`, `fileinfo`. Em produção o PHP vem do PPA `ondrej/php`, que o `unattended-upgrades` do Ubuntu não atualiza sozinho: veja "Atualização do PHP". |
+| Memória do FPM | `memory_limit = 512M` em `/etc/php/8.4/mods-available/moduhub.ini`, ligado só ao FPM (`fpm/conf.d/99-moduhub.ini`). O CLI fica sem limite (`-1`). Com `pm.max_children = 5`, o pior caso é 2,5 GB. |
 | Banco | MySQL 8. Os relatórios usam `CONVERT_TZ` com offset fixo (`-03:00`), que não depende das tabelas de fuso do MySQL. |
 | Node | Só para o build (`npm ci && npm run build`). Não precisa rodar no servidor se o build vier pronto. |
 | nginx | `fastcgi_buffer_size 16k; fastcgi_buffers 16 16k;` no `location ~ \.php$`. O padrão de 4 KB não comporta o cabeçalho `Link` de preload somado aos cookies: o PHP responde e o nginx devolve 502 (`upstream sent too big header` no `error.log`). O app já limita o `Link` a 8 assets; o buffer maior é a folga. |
@@ -99,6 +100,28 @@ Se a produção ainda não recebeu os commits anteriores (S3 e certificados), si
    | `signatures:check-platform-certificate` | 08:00 de Brasília: certificado da Moduhub |
    | `billing:cycle` | de hora em hora: fim do teste, excedente do ciclo, bloqueio por atraso |
 
+## Atualização do PHP
+
+O servidor de produção (Ubuntu 24.04) instala o PHP pelo PPA `ondrej/php`. Por padrão, o `unattended-upgrades` só aplica o repositório de segurança do Ubuntu, e foi assim que a produção ficou de out/2025 a out/2026 na 8.4.13. **Pendente:** criar `/etc/apt/apt.conf.d/52unattended-ondrej-php` para incluir o PPA, e conferir com `unattended-upgrade --dry-run --debug 2>&1 | grep ondrej`:
+
+```
+Unattended-Upgrade::Allowed-Origins {
+    "LP-PPA-ondrej-php:${distro_codename}";
+};
+```
+
+Atualização manual, quando sai um alerta de segurança:
+
+```bash
+apt update
+apt install --only-upgrade -o Dpkg::Options::="--force-confold" 'php8.4*' php-common
+php-fpm8.4 -t && systemctl restart php8.4-fpm
+supervisorctl restart all          # a fila e o SSR seguram o binário antigo na memória
+php -v; php-fpm8.4 -v              # os dois na versão nova
+```
+
+O `--force-confold` mantém o `php.ini` e o pool editados. O servidor roda outros sistemas no mesmo PHP e no mesmo Supervisor: o `restart all` reinicia todos eles.
+
 ## `.env` de produção
 
 Os valores secretos ficam no gerenciador de senhas da empresa. Nada disso vai para o Git.
@@ -131,8 +154,8 @@ CACHE_STORE=database                      # ou redis, se houver
 MAIL_MAILER=ses-v2
 MAIL_FROM_ADDRESS="nao-responda@moduhub.com.br"
 MAIL_FROM_NAME="Moduhub"
-SES_KEY=                                  # vazio = usa AWS_ACCESS_KEY_ID / role da instância
-SES_SECRET=
+SES_KEY=...                               # obrigatório: o usuário AWS_* só enxerga o S3 (armazenamento.md, passo 6)
+SES_SECRET=...
 SES_REGION=sa-east-1
 SES_CONFIGURATION_SET=moduhub-transactional
 SES_SNS_TOPIC_ARN=arn:aws:sns:sa-east-1:851725549821:moduhub-ses-events
@@ -149,7 +172,7 @@ AWS_ACCESS_KEY_ID=...
 AWS_SECRET_ACCESS_KEY=...
 AWS_DEFAULT_REGION=sa-east-1
 AWS_BUCKET=moduhub-prod-files
-AWS_KMS_KEY_ID=
+AWS_KMS_KEY_ID=arn:aws:kms:sa-east-1:851725549821:key/...   # alias/moduhub-files, ARN completo
 
 # NFS-e
 INVOICES_SEFIN_DRIVER=http
