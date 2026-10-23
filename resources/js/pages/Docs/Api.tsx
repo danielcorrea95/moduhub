@@ -234,8 +234,8 @@ const SIGNER_ID = '01k7x3qa1c3e5g7j9k1m3p5r7t';
 
 const ISSUER = {
     id: '01k7x5a1b2c3d4e5f6g7h8j9k0',
-    legal_name: 'Agência Vela Comunicação Ltda',
-    trade_name: 'Agência Vela',
+    legal_name: 'Lumen Estúdio Criativo Ltda',
+    trade_name: 'Lumen Estúdio',
     cnpj: '12345678000195',
     municipal_registration: '123456',
     city_code: '4313409',
@@ -252,7 +252,7 @@ const ISSUER = {
     next_dps_number: 1,
     ready_to_issue: true,
     certificate: {
-        subject: 'AGENCIA VELA COMUNICACAO LTDA:12345678000195',
+        subject: 'LUMEN ESTUDIO CRIATIVO LTDA:12345678000195',
         cnpj: '12345678000195',
         issuer: 'AC SOLUTI Multipla v5',
         serial: '1A2B3C4D5E6F',
@@ -504,7 +504,7 @@ export default function ApiDocs({ baseUrl, scopes, events, rateLimitPerMinute }:
                             <CodeBlock
                                 title="Resposta 200"
                                 code={json({
-                                    tenant: { id: '01k7w8...', name: 'Agência Vela', slug: 'agencia-vela', modules: ['signatures'] },
+                                    tenant: { id: '01k7w8...', name: 'Lumen Estúdio', slug: 'lumen-estudio', modules: ['signatures'] },
                                     api_key: { id: '01k7w9...', name: 'Integração CRM', environment: 'live', scopes: ['signatures:*'] },
                                 })}
                             />
@@ -897,8 +897,8 @@ export default function ApiDocs({ baseUrl, scopes, events, rateLimitPerMinute }:
                                 method: 'PUT',
                                 path: '/invoices/issuer',
                                 json: {
-                                    legal_name: 'Agência Vela Comunicação Ltda',
-                                    trade_name: 'Agência Vela',
+                                    legal_name: 'Lumen Estúdio Criativo Ltda',
+                                    trade_name: 'Lumen Estúdio',
                                     cnpj: '12.345.678/0001-95',
                                     municipal_registration: '123456',
                                     city_code: '4313409',
@@ -1719,7 +1719,7 @@ export default function ApiDocs({ baseUrl, scopes, events, rateLimitPerMinute }:
                                     status: 'issued',
                                     nfse_number: '7',
                                     provider: { document: '11222333000181', name: 'Fornecedor de Serviços Ltda' },
-                                    taker: { document: '12345678000195', name: 'Agência Vela Comunicação Ltda' },
+                                    taker: { document: '12345678000195', name: 'Lumen Estúdio Criativo Ltda' },
                                     competence_date: '2026-10-15',
                                     issued_at: '2026-10-15T14:02:11-03:00',
                                     amount: '1200.00',
