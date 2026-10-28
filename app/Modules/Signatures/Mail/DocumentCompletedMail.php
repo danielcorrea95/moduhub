@@ -8,25 +8,19 @@ use App\Modules\Signatures\Models\Document;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
-use Illuminate\Mail\Mailables\Attachment;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
-use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
 
 /**
- * Cópia do documento assinado para cada envolvido, enviada quando a última pessoa assina.
+ * Aviso para cada envolvido quando a última pessoa assina, com o link da cópia final.
+ *
+ * O PDF vai só como link, sem anexo: o SES cobra por GB de anexo e PDF anexado de
+ * remetente novo pesa contra a entrega no Outlook/Hotmail.
  */
 class DocumentCompletedMail extends Mailable implements ShouldQueue
 {
     use Queueable, SerializesModels;
-
-    /**
-     * Acima disso o PDF vai só como link: o base64 do anexo cresce ~33% e muitos
-     * provedores recusam mensagens acima de 20–25 MB.
-     */
-    public const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
 
     public function __construct(
         public Document $document,
@@ -60,7 +54,6 @@ class DocumentCompletedMail extends Mailable implements ShouldQueue
                 'recipientEmail' => $this->recipientEmail,
                 'tenantName' => $this->tenant?->name,
                 'signers' => $this->document->signers()->withoutTenantScope()->orderBy('order')->get(),
-                'attached' => $this->shouldAttach(),
                 'sealed' => $this->document->isSealed(),
                 'completedAt' => $this->document->completed_at?->copy()->setTimezone(config('signatures.report_timezone')),
                 'downloadUrl' => route('verify.download', $short),
@@ -69,35 +62,6 @@ class DocumentCompletedMail extends Mailable implements ShouldQueue
                 'logoUrl' => $this->resolveLogoUrl(),
             ],
         );
-    }
-
-    /** @return array<int, Attachment> */
-    public function attachments(): array
-    {
-        if (! $this->shouldAttach()) {
-            return [];
-        }
-
-        return [
-            Attachment::fromStorageDisk($this->document->file_disk, $this->document->final_file_path)
-                ->as($this->attachmentName())
-                ->withMime('application/pdf'),
-        ];
-    }
-
-    protected function shouldAttach(): bool
-    {
-        $path = $this->document->final_file_path;
-        $disk = Storage::disk($this->document->file_disk);
-
-        return $path !== null && $disk->exists($path) && $disk->size($path) <= self::MAX_ATTACHMENT_BYTES;
-    }
-
-    protected function attachmentName(): string
-    {
-        $slug = Str::slug($this->document->name ?: 'documento');
-
-        return ($slug !== '' ? $slug : 'documento').'-assinado.pdf';
     }
 
     protected function resolvePrimaryColor(): string

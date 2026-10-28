@@ -13,7 +13,6 @@ use App\Modules\Signatures\Models\DocumentSigner;
 use App\Tenancy\CurrentTenant;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
-use Illuminate\Mail\Mailables\Attachment;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Queue;
@@ -146,15 +145,10 @@ class PlatformSealTest extends TestCase
         $this->sign($second);
         $document->refresh();
 
-        $signedPdf = Attachment::fromStorageDisk('documents', $document->final_file_path)
-            ->as('contrato-assinado.pdf')
-            ->withMime('application/pdf');
-
         $expected = ['ana@example.com', 'bruno@example.com', strtolower($this->owner->email)];
         foreach ($expected as $email) {
             Mail::assertQueued(DocumentCompletedMail::class, fn (DocumentCompletedMail $mail) => $mail->hasTo($email)
-                && count($mail->attachments()) === 1
-                && $mail->attachments()[0]->isEquivalent($signedPdf));
+                && $mail->attachments() === []);
         }
         Mail::assertQueued(DocumentCompletedMail::class, 3);
 

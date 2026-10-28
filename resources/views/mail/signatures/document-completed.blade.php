@@ -41,7 +41,7 @@
 </head>
 <body class="bg-page" style="margin:0; padding:0; background-color:#f1f5f9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
     <div style="display:none; max-height:0; overflow:hidden; mso-hide:all; font-size:1px; line-height:1px; color:transparent;">
-        Todos assinaram {{ $document->name }}. {{ $attached ? 'A cópia assinada está em anexo.' : 'Baixe a cópia assinada pelo link.' }}
+        Todos assinaram {{ $document->name }}. Baixe a cópia assinada pelo link.
     </div>
 
     <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" class="bg-page" style="background-color:#f1f5f9;">
@@ -90,11 +90,7 @@
                             <p class="text-muted" style="margin:16px 0 0 0; font-size:16px; line-height:1.6; color:#475569;">
                                 Todas as pessoas assinaram
                                 <strong class="text-primary" style="color:#0f172a;">{{ $document->name }}</strong>.
-                                @if($attached)
-                                    A cópia final está em anexo, com o relatório de assinaturas na última página.
-                                @else
-                                    O arquivo é grande demais para ir em anexo: baixe a cópia final pelo botão abaixo.
-                                @endif
+                                Baixe a cópia final pelo botão abaixo, com o relatório de assinaturas na última página.
                                 Guarde este arquivo: ele é o seu comprovante.
                             </p>
                         </td>
