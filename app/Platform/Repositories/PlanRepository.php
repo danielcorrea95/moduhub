@@ -24,6 +24,17 @@ class PlanRepository implements PlanRepositoryContract
         return $this->forSale()->whereIn('key', $keys)->get();
     }
 
+    public function active(?array $ids = null): Collection
+    {
+        return Plan::query()
+            ->where('is_active', true)
+            ->when($ids !== null, fn (Builder $q) => $q->whereIn('id', $ids))
+            ->with('modules')
+            ->orderBy('sort_order')
+            ->orderBy('price_cents')
+            ->get();
+    }
+
     public function allForAdmin(): Collection
     {
         return Plan::query()

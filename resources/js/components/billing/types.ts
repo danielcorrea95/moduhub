@@ -1,6 +1,6 @@
 export type BillingType = 'PIX' | 'CREDIT_CARD';
 
-export type SubscriptionStatus = 'trial' | 'incomplete' | 'active' | 'past_due' | 'suspended' | 'cancelled';
+export type SubscriptionStatus = 'trial' | 'incomplete' | 'active' | 'past_due' | 'suspended' | 'cancelled' | 'complimentary';
 
 export type PaymentStatus = 'pending' | 'paid' | 'overdue' | 'refunded' | 'chargeback' | 'cancelled';
 
@@ -114,6 +114,7 @@ export const SUBSCRIPTION_STATUS: Record<SubscriptionStatus, { label: string; to
     past_due: { label: 'Em atraso', tone: 'rejected' },
     suspended: { label: 'Bloqueada', tone: 'rejected' },
     cancelled: { label: 'Cancelada', tone: 'idle' },
+    complimentary: { label: 'Cortesia', tone: 'signed' },
 };
 
 export const PAYMENT_STATUS: Record<PaymentStatus, { label: string; tone: 'signed' | 'pending' | 'rejected' | 'idle' }> = {

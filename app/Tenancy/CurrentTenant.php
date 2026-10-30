@@ -36,6 +36,28 @@ class CurrentTenant
     }
 
     /**
+     * Executa o callback sem workspace no contexto e devolve o anterior no fim, mesmo com erro. Para o
+     * admin da plataforma, que navega com o próprio workspace na sessão mas age sobre o de um cliente:
+     * dentro do callback, `run()` entra no workspace do cliente sem ser recusado.
+     *
+     * @template T
+     *
+     * @param  Closure(): T  $callback
+     * @return T
+     */
+    public function outside(Closure $callback): mixed
+    {
+        $previous = $this->tenant;
+        $this->tenant = null;
+
+        try {
+            return $callback();
+        } finally {
+            $this->tenant = $previous;
+        }
+    }
+
+    /**
      * Executa o callback dentro do workspace dado e devolve o contexto anterior no fim, mesmo com erro.
      * Para jobs, comandos e rotas públicas que descobrem o tenant pelo registro ou pelo token, e para
      * serviços que recebem o tenant como argumento.

@@ -54,6 +54,10 @@ class DashboardService
         $plans = $subscription?->plans ?? collect();
         $trial = $subscription?->status === TenantSubscription::STATUS_TRIAL;
         [$start, $end] = BillingPeriod::for($subscription);
+        // Cortesia não cobra excedente: a previsão mostraria um valor que nunca vira fatura.
+        if ($subscription?->isComplimentary()) {
+            $charges = [];
+        }
 
         $lines = [
             ...$plans->map(fn ($plan) => ['label' => "Plano {$plan->name}", 'cents' => $trial ? 0 : (int) $plan->pivot->price_cents])->all(),

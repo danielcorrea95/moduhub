@@ -112,6 +112,7 @@ app/Modules/<ModuleName>/
 - Sem pagamento o workspace fica **só leitura** (`TenantSubscription::isBlocked()`, conferido em `module.web` e `module`). A assinatura pública de documentos não é bloqueada.
 - Carrinho: a assinatura tem um plano por produto (`tenant_subscription_items`, com o preço contratado). Para saber cota e excedente de um produto use `$subscription->termsFor(Module::X)` (carregue `plans.modules`); nunca "o plano da assinatura".
 - Excedente: módulo que cobra além do plano implementa `BillableUsageContract` com a tag `billable-usage`; `billing:cycle` cobra no fechamento do ciclo.
+- Cortesia (`TenantSubscription::STATUS_COMPLIMENTARY`): workspace que não paga, cadastrado em `/admin/clientes` (`ComplimentaryService`). Sem Asaas, sem ciclo, sem excedente, nunca bloqueia; o plano só dá as cotas. O admin age sobre o workspace do cliente com o dele na sessão: use `CurrentTenant::outside()` antes do `run()`.
 - Planos são cadastrados pela equipe em `/admin/planos` (gate `access-admin-panel`, `users.is_platform_admin`, criado pelo `PlatformAdminSeeder`). O `PlanSeeder` é só para desenvolvimento.
 - Operação, Asaas e problemas comuns: `docs/runbooks/cobranca.md`.
 

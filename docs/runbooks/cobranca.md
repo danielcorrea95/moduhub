@@ -75,6 +75,16 @@ Código em `app/Modules/Billing`.
 - **Em produção, não rode o `PlanSeeder`.** Ele cria a grade de exemplo, que serve só para desenvolvimento. Os planos de produção são cadastrados no admin.
 - **Combos antigos** (`starter`, `signatures-pro`, `invoices-pro`): aparecem no admin em "Combos antigos". Ficam fora do carrinho e valem para quem já tinha.
 
+### Clientes em cortesia
+
+**Admin → Clientes** lista todos os workspaces e cadastra quem usa sem pagar (sistemas da casa, parceiros).
+
+- **Novo cliente:** nome do workspace, dono (nome e e-mail) e um plano por produto. O workspace já nasce com status `complimentary`, sem teste grátis e sem Asaas. Se o e-mail já tem conta, o workspace entra nela. Se não tem, a conta é criada e o dono recebe um link para criar a senha. O link expira em 60 minutos; depois disso, o dono usa "Esqueci minha senha".
+- **O que a cortesia faz:** não cobra mensalidade nem excedente, nunca bloqueia por pagamento e fica fora do `billing:cycle`. O plano só define as cotas: cota de NFS-e e de e-mail continua sendo limite. Para uso sem limite, crie um plano **oculto do site** com a cota em branco e use esse plano na cortesia.
+- **Workspace que já existe:** abra pelo admin e use "Dar cortesia". Isso é recusado quando há assinatura viva no Asaas: o cliente cancela antes, na tela Assinatura, senão o Asaas continua cobrando.
+- **Encerrar cortesia:** o workspace ganha 7 dias de teste grátis, com o aviso no topo do painel, para assinar. Depois disso, bloqueia como qualquer teste vencido.
+- O cliente em cortesia não vê o formulário de assinar e não troca os planos sozinho.
+
 ## Configurar no Asaas
 
 1. **Conta:** use a conta PJ da Moduhub. Para testar, crie uma conta no sandbox (`sandbox.asaas.com`).

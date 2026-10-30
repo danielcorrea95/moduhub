@@ -1,3 +1,4 @@
+import type { SubscriptionStatus } from '@/components/billing/types';
 import type { Counters, Rates } from '@/components/mailing/email-log';
 import type { EmailUsageData } from '@/components/mailing/types';
 import type { SignerSummary } from '@/components/signer-progress';
@@ -13,7 +14,7 @@ export interface DashboardAlert {
 
 export interface Billing {
     plan: string | null;
-    status: 'trial' | 'active' | 'past_due' | 'cancelled' | null;
+    status: SubscriptionStatus | null;
     trial_ends_at: string | null;
     period_start: string;
     period_end: string;

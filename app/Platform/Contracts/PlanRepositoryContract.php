@@ -32,6 +32,14 @@ interface PlanRepositoryContract
     public function findManyForSaleByKeys(array $keys): Collection;
 
     /**
+     * Planos ativos, à venda ou ocultos do site, com os módulos. Para a cortesia dada pelo admin.
+     *
+     * @param  list<int>|null  $ids  nulo traz todos
+     * @return Collection<int, Plan>
+     */
+    public function active(?array $ids = null): Collection;
+
+    /**
      * Todos os planos, ativos ou não, com os módulos e quantas assinaturas usam cada um. Para o admin.
      *
      * @return Collection<int, Plan>

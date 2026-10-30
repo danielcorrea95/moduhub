@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\CustomerController as AdminCustomerController;
 use App\Http\Controllers\Admin\PlanController as AdminPlanController;
 use App\Http\Controllers\Admin\PlatformCertificateController as AdminPlatformCertificateController;
 use App\Http\Controllers\ApiDocsController;
@@ -196,6 +197,13 @@ Route::middleware(['auth', 'can:access-admin-panel'])->prefix('admin')->name('ad
     Route::post('/planos', [AdminPlanController::class, 'store'])->name('plans.store');
     Route::get('/planos/{plan}/editar', [AdminPlanController::class, 'edit'])->name('plans.edit');
     Route::put('/planos/{plan}', [AdminPlanController::class, 'update'])->name('plans.update');
+
+    Route::get('/clientes', [AdminCustomerController::class, 'index'])->name('customers.index');
+    Route::get('/clientes/novo', [AdminCustomerController::class, 'create'])->name('customers.create');
+    Route::post('/clientes', [AdminCustomerController::class, 'store'])->name('customers.store');
+    Route::get('/clientes/{tenant}', [AdminCustomerController::class, 'edit'])->name('customers.edit');
+    Route::put('/clientes/{tenant}/cortesia', [AdminCustomerController::class, 'grantComplimentary'])->name('customers.complimentary.grant');
+    Route::delete('/clientes/{tenant}/cortesia', [AdminCustomerController::class, 'endComplimentary'])->name('customers.complimentary.end');
 
     Route::get('/certificado', [AdminPlatformCertificateController::class, 'index'])->name('platform-certificate.index');
     // Limite baixo: as duas pedem a senha da conta, e ninguém troca o certificado mais que uma vez por ano.

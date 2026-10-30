@@ -53,6 +53,8 @@ function Badge({ label, tone }: { label: string; tone: keyof typeof TONE_CLASSES
 export default function BillingShow({ subscription, products, account, payments, grace_days, preselected_plan_ids }: Props) {
     // Assinatura viva no Asaas: troca de produtos e de forma de pagamento. Senão, o formulário de assinar.
     const subscribed = Boolean(subscription?.has_gateway_subscription) && subscription?.status !== 'cancelled';
+    // Cortesia: os produtos são definidos pela equipe da Moduhub, não há o que assinar nem trocar.
+    const complimentary = subscription?.status === 'complimentary';
     const currentIds = (subscription?.plans ?? []).map((p) => p.id);
     const cart = usePlanCart(products, preselected_plan_ids.length > 0 ? preselected_plan_ids : currentIds);
     const [changingMethod, setChangingMethod] = useState(false);
@@ -76,65 +78,67 @@ export default function BillingShow({ subscription, products, account, payments,
 
             {subscription && <StatusPanel subscription={subscription} graceDays={grace_days} />}
 
-            <section aria-labelledby="plans-title" className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
-                <div className="flex flex-col gap-8">
-                    <header>
-                        <h2 id="plans-title" className="text-base font-medium">
-                            {subscribed ? 'Seus produtos' : 'Monte sua assinatura'}
-                        </h2>
-                        <p className="mt-1 text-sm text-muted-foreground">
-                            Escolha um plano de cada produto que quiser usar. Tudo vem numa mensalidade só.
+            {!complimentary && (
+                <section aria-labelledby="plans-title" className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
+                    <div className="flex flex-col gap-8">
+                        <header>
+                            <h2 id="plans-title" className="text-base font-medium">
+                                {subscribed ? 'Seus produtos' : 'Monte sua assinatura'}
+                            </h2>
+                            <p className="mt-1 text-sm text-muted-foreground">
+                                Escolha um plano de cada produto que quiser usar. Tudo vem numa mensalidade só.
+                            </p>
+                        </header>
+                        {products.map((product) => (
+                            <ProductPicker
+                                key={product.key}
+                                product={product}
+                                selectedId={cart.selected[product.key] ?? null}
+                                onSelect={(id) => cart.toggle(product.key, id)}
+                            />
+                        ))}
+                    </div>
+
+                    <aside className="flex flex-col gap-4 rounded-xl border bg-card p-5 lg:sticky lg:top-6">
+                        <h3 className="text-sm font-medium">Resumo</h3>
+                        {cart.plans.length === 0 ? (
+                            <p className="text-sm text-muted-foreground">Nenhum plano escolhido.</p>
+                        ) : (
+                            <dl className="flex flex-col gap-2 text-sm">
+                                {cart.plans.map((plan) => (
+                                    <div key={plan.id} className="flex items-baseline justify-between gap-3">
+                                        <dt>
+                                            <span className="block">{plan.name}</span>
+                                            <span className="block text-xs text-muted-foreground">{PRODUCT_LABEL[plan.product]}</span>
+                                        </dt>
+                                        <dd className="tabular-nums">{formatCents(priceFor(plan.id) ?? plan.price_cents)}</dd>
+                                    </div>
+                                ))}
+                            </dl>
+                        )}
+                        <p className="flex items-baseline justify-between border-t pt-3">
+                            <span className="text-sm font-medium">Total por mês</span>
+                            <span className="text-xl font-semibold tabular-nums">{formatCents(cartTotal)}</span>
                         </p>
-                    </header>
-                    {products.map((product) => (
-                        <ProductPicker
-                            key={product.key}
-                            product={product}
-                            selectedId={cart.selected[product.key] ?? null}
-                            onSelect={(id) => cart.toggle(product.key, id)}
-                        />
-                    ))}
-                </div>
+                        {subscribed && (
+                            <ConfirmAction
+                                trigger={
+                                    <Button disabled={!cartChanged || cart.plans.length === 0}>Salvar alterações</Button>
+                                }
+                                title="Alterar os produtos da assinatura?"
+                                description={`Os produtos mudam agora. A mensalidade passa a ser ${formatCents(cartTotal)} a partir da próxima cobrança em aberto, sem valor proporcional.`}
+                                confirmLabel="Alterar assinatura"
+                                onConfirm={savePlans}
+                            />
+                        )}
+                        {subscribed && cartChanged && cart.plans.length === 0 && (
+                            <p className="text-xs text-muted-foreground">Para sair de todos os produtos, cancele a assinatura no fim da página.</p>
+                        )}
+                    </aside>
+                </section>
+            )}
 
-                <aside className="flex flex-col gap-4 rounded-xl border bg-card p-5 lg:sticky lg:top-6">
-                    <h3 className="text-sm font-medium">Resumo</h3>
-                    {cart.plans.length === 0 ? (
-                        <p className="text-sm text-muted-foreground">Nenhum plano escolhido.</p>
-                    ) : (
-                        <dl className="flex flex-col gap-2 text-sm">
-                            {cart.plans.map((plan) => (
-                                <div key={plan.id} className="flex items-baseline justify-between gap-3">
-                                    <dt>
-                                        <span className="block">{plan.name}</span>
-                                        <span className="block text-xs text-muted-foreground">{PRODUCT_LABEL[plan.product]}</span>
-                                    </dt>
-                                    <dd className="tabular-nums">{formatCents(priceFor(plan.id) ?? plan.price_cents)}</dd>
-                                </div>
-                            ))}
-                        </dl>
-                    )}
-                    <p className="flex items-baseline justify-between border-t pt-3">
-                        <span className="text-sm font-medium">Total por mês</span>
-                        <span className="text-xl font-semibold tabular-nums">{formatCents(cartTotal)}</span>
-                    </p>
-                    {subscribed && (
-                        <ConfirmAction
-                            trigger={
-                                <Button disabled={!cartChanged || cart.plans.length === 0}>Salvar alterações</Button>
-                            }
-                            title="Alterar os produtos da assinatura?"
-                            description={`Os produtos mudam agora. A mensalidade passa a ser ${formatCents(cartTotal)} a partir da próxima cobrança em aberto, sem valor proporcional.`}
-                            confirmLabel="Alterar assinatura"
-                            onConfirm={savePlans}
-                        />
-                    )}
-                    {subscribed && cartChanged && cart.plans.length === 0 && (
-                        <p className="text-xs text-muted-foreground">Para sair de todos os produtos, cancele a assinatura no fim da página.</p>
-                    )}
-                </aside>
-            </section>
-
-            {!subscribed && cart.plans.length > 0 && (
+            {!subscribed && !complimentary && cart.plans.length > 0 && (
                 <section className="rounded-xl border bg-card p-5 md:p-8">
                     <h2 className="mb-6 text-base font-medium">Pagamento</h2>
                     <PaymentForm
@@ -305,6 +309,8 @@ function StatusPanel({ subscription: s, graceDays }: { subscription: BillingSubs
                 return s.blocked
                     ? 'Assinatura cancelada. O workspace está só para consulta. Assine de novo para voltar a usar.'
                     : `Assinatura cancelada. O workspace segue liberado até ${formatDate(s.current_period_end)}.`;
+            case 'complimentary':
+                return 'Cortesia da Moduhub: nada é cobrado. Para mudar os produtos, fale com a nossa equipe.';
         }
     })();
 
@@ -318,7 +324,9 @@ function StatusPanel({ subscription: s, graceDays }: { subscription: BillingSubs
             <div className="flex flex-wrap items-center gap-3">
                 <h2 className="text-base font-medium">{s.plans.length > 0 ? s.plans.map((p) => p.name).join(', ') : 'Sem plano'}</h2>
                 <Badge {...status} />
-                {s.plans.length > 0 && <span className="text-sm text-muted-foreground tabular-nums">{formatCents(s.price_cents)}/mês</span>}
+                {s.plans.length > 0 && s.status !== 'complimentary' && (
+                    <span className="text-sm text-muted-foreground tabular-nums">{formatCents(s.price_cents)}/mês</span>
+                )}
             </div>
             <p className="text-sm text-muted-foreground">{detail}</p>
         </section>

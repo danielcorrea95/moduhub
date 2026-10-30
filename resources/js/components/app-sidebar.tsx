@@ -54,6 +54,12 @@ function useNavGroups(): NavGroup[] {
             title: 'Admin',
             items: [
                 {
+                    title: 'Clientes',
+                    href: route('admin.customers.index'),
+                    icon: Building2,
+                    isActive: current('admin.customers.*'),
+                },
+                {
                     title: 'Planos',
                     href: route('admin.plans.index'),
                     icon: Tags,

@@ -17,7 +17,9 @@ export function AccountReceipt({ billing }: { billing: Billing }) {
             <p className="mt-2 text-xs text-muted-foreground">
                 {billing.status === 'trial'
                     ? `Teste grátis até ${formatDate(billing.trial_ends_at)}. Nada é cobrado até lá.`
-                    : billing.plan
+                    : billing.status === 'complimentary'
+                      ? 'Cortesia da Moduhub. Nada é cobrado.'
+                      : billing.plan
                       ? `Previsão deste ciclo, que fecha em ${formatDate(billing.period_end)}.`
                       : 'Nenhum plano contratado.'}
             </p>

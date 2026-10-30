@@ -21,6 +21,8 @@ class TenantSubscription extends Model
     /** Bloqueado: teste acabou sem assinatura ou a carência do atraso passou. */
     public const STATUS_SUSPENDED = 'suspended';
     public const STATUS_CANCELLED = 'cancelled';
+    /** Cortesia dada pelo admin da plataforma: sem Asaas, sem mensalidade, sem excedente, nunca bloqueia. */
+    public const STATUS_COMPLIMENTARY = 'complimentary';
 
     public const BILLING_PIX = 'PIX';
     public const BILLING_CREDIT_CARD = 'CREDIT_CARD';
@@ -99,6 +101,11 @@ class TenantSubscription extends Model
     public function isTrial(): bool
     {
         return $this->status === self::STATUS_TRIAL;
+    }
+
+    public function isComplimentary(): bool
+    {
+        return $this->status === self::STATUS_COMPLIMENTARY;
     }
 
     public function hasGatewaySubscription(): bool

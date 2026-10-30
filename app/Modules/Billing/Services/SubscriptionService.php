@@ -28,6 +28,8 @@ class SubscriptionService
 {
     public const TIMEZONE = 'America/Sao_Paulo';
 
+    private const COMPLIMENTARY_MESSAGE = 'Este workspace é cortesia da Moduhub. Os produtos são alterados pela nossa equipe.';
+
     public function __construct(
         private PaymentGatewayContract $gateway,
         private SubscriptionRepositoryContract $subscriptions,
@@ -56,6 +58,10 @@ class SubscriptionService
 
         return $this->currentTenant->run($tenant, function () use ($tenant, $plans, $billingType, $accountData, $card, $remoteIp) {
             $current = $this->subscriptions->current($tenant);
+
+            if ($current?->isComplimentary()) {
+                throw ValidationException::withMessages(['plan_ids' => self::COMPLIMENTARY_MESSAGE]);
+            }
 
             if ($current?->hasGatewaySubscription() && $current->status !== TenantSubscription::STATUS_CANCELLED) {
                 throw ValidationException::withMessages(['plan_ids' => 'Este workspace já tem uma assinatura. Altere os planos ou a forma de pagamento.']);
@@ -130,6 +136,9 @@ class SubscriptionService
             $subscription = $this->subscriptions->current($tenant);
             if ($subscription === null || $subscription->status === TenantSubscription::STATUS_CANCELLED) {
                 throw ValidationException::withMessages(['plan_ids' => 'Assine um plano antes de trocar.']);
+            }
+            if ($subscription->isComplimentary()) {
+                throw ValidationException::withMessages(['plan_ids' => self::COMPLIMENTARY_MESSAGE]);
             }
 
             $kept = $subscription->plans->pluck('pivot.price_cents', 'id');
