@@ -123,6 +123,7 @@ interface Props {
     events: InvoiceEvent[];
     canCancel: boolean;
     canReplace: boolean;
+    rejectedByLayout: boolean;
     cities: Record<string, string>;
     options: {
         cancel_reason: Record<string, string>;
@@ -340,7 +341,7 @@ function CancelDialog({ invoice, reasons, review = false }: { invoice: InvoiceDa
     );
 }
 
-export default function InvoicesShow({ invoice, events, canCancel, canReplace, cities, options }: Props) {
+export default function InvoicesShow({ invoice, events, canCancel, canReplace, rejectedByLayout, cities, options }: Props) {
     const [syncing, setSyncing] = useState(false);
     const title = invoice.nfse_number ? `NFS-e nº ${invoice.nfse_number}` : `DPS nº ${invoice.dps.number}`;
 
@@ -434,10 +435,14 @@ export default function InvoicesShow({ invoice, events, canCancel, canReplace, c
                         ))}
                     </ul>
                     <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                        <p className="text-rejected/80">Corrija os dados e reenvie. Sai uma DPS nova; esta fica registrada como rejeitada.</p>
+                        <p className="text-rejected/80">
+                            {rejectedByLayout
+                                ? 'O problema está no formato do XML que a Moduhub gera, não nos dados da nota. Não é preciso alterar nada: reenvie com os mesmos dados. Sai uma DPS nova; esta fica registrada como rejeitada.'
+                                : 'Corrija os dados e reenvie. Sai uma DPS nova; esta fica registrada como rejeitada.'}
+                        </p>
                         <Button asChild size="sm" className="shrink-0">
                             <Link href={route('invoices.create', { from: invoice.id })}>
-                                <Pencil /> Corrigir e reenviar
+                                {rejectedByLayout ? <RefreshCw /> : <Pencil />} {rejectedByLayout ? 'Reenviar' : 'Corrigir e reenviar'}
                             </Link>
                         </Button>
                     </div>

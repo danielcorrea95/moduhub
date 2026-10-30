@@ -10,7 +10,8 @@ use Illuminate\Validation\ValidationException;
 
 /**
  * Monta a DPS (Declaração de Prestação de Serviço) no leiaute nacional v1.01 a partir da nota e do emitente.
- * A ordem dos elementos segue o XSD; as regras de presença seguem o Anexo I (RN da DPS).
+ * A ordem dos elementos segue o XSD do ambiente (NfseLayout): a NT 009 reorganizou finNFSe, xDescServ,
+ * deduções/reembolsos e o grupo IBSCBS. As regras de presença seguem o Anexo I (RN da DPS).
  */
 class DpsBuilder
 {
@@ -60,6 +61,7 @@ class DpsBuilder
 
         $inf = $this->el($root, 'infDPS');
         $inf->setAttribute('Id', $invoice->dps_id);
+        $nt009 = NfseLayout::isNt009($issuer);
 
         $this->el($inf, 'tpAmb', $issuer->isProduction() ? '1' : '2');
         // O leiaute exige o fuso explícito (-03:00); "Z" não passa no pattern TSDateTimeUTC.
@@ -69,6 +71,10 @@ class DpsBuilder
         $this->el($inf, 'nDPS', (string) $invoice->dps_number);
         $this->el($inf, 'dCompet', $invoice->competence_date->format('Y-m-d'));
         $this->el($inf, 'tpEmit', self::TP_EMIT_PROVIDER);
+        if ($nt009) {
+            // A NT 009 tirou finNFSe do grupo IBSCBS e o tornou obrigatório em toda DPS.
+            $this->el($inf, 'finNFSe', self::FIN_NFSE_REGULAR);
+        }
         $this->el($inf, 'cLocEmi', $issuer->city_code);
 
         if ($invoice->isReplacement()) {
@@ -80,11 +86,11 @@ class DpsBuilder
         if (! empty($invoice->intermediary)) {
             $this->person($inf, 'interm', $invoice->intermediary);
         }
-        $this->service($inf, $invoice->service, $issuer);
-        $this->values($inf, $invoice, $issuer);
+        $this->service($inf, $invoice->service, $issuer, $nt009);
+        $this->values($inf, $invoice, $issuer, $nt009);
 
         if (! empty($invoice->ibs_cbs)) {
-            $this->ibsCbs($inf, $invoice->ibs_cbs);
+            $this->ibsCbs($inf, $invoice->ibs_cbs, $nt009, $invoice->service['city_code'] ?? $issuer->city_code);
         }
 
         return $doc;
@@ -158,7 +164,7 @@ class DpsBuilder
     }
 
     /** @param  array<string, mixed>  $service */
-    private function service(DOMElement $inf, array $service, Issuer $issuer): void
+    private function service(DOMElement $inf, array $service, Issuer $issuer, bool $nt009): void
     {
         $serv = $this->el($inf, 'serv');
         $loc = $this->el($serv, 'locPrest');
@@ -167,8 +173,15 @@ class DpsBuilder
         $cServ = $this->el($serv, 'cServ');
         $this->el($cServ, 'cTribNac', (string) $service['national_tax_code']);
         $this->optional($cServ, 'cTribMun', $service['municipal_tax_code'] ?? null);
-        $this->el($cServ, 'xDescServ', NfseText::clean($service['description'] ?? null) ?? '');
+        $description = NfseText::clean($service['description'] ?? null) ?? '';
+        // Na NT 009 a descrição passou para o fim do grupo, depois do cNBS.
+        if (! $nt009) {
+            $this->el($cServ, 'xDescServ', $description);
+        }
         $this->optional($cServ, 'cNBS', $service['nbs_code'] ?? null);
+        if ($nt009) {
+            $this->el($cServ, 'xDescServ', $description);
+        }
 
         $trade = $service['foreign_trade'] ?? null;
         if (is_array($trade)) {
@@ -248,7 +261,7 @@ class DpsBuilder
         return $end;
     }
 
-    private function values(DOMElement $inf, Invoice $invoice, Issuer $issuer): void
+    private function values(DOMElement $inf, Invoice $invoice, Issuer $issuer, bool $nt009): void
     {
         $valores = $this->el($inf, 'valores');
         $vServPrest = $this->el($valores, 'vServPrest');
@@ -261,7 +274,9 @@ class DpsBuilder
             $this->optionalMoney($desc, 'vDescCond', $invoice->conditional_discount);
         }
 
-        if ($invoice->deduction_percent !== null || $invoice->deduction_amount !== null || ! empty($invoice->deduction_documents)) {
+        if ($nt009) {
+            $this->baseAdjustments($valores, $invoice, $issuer);
+        } elseif ($invoice->deduction_percent !== null || $invoice->deduction_amount !== null || ! empty($invoice->deduction_documents)) {
             $dedRed = $this->el($valores, 'vDedRed');
             match (true) {
                 $invoice->deduction_percent !== null => $this->el($dedRed, 'pDR', NfseText::money($invoice->deduction_percent)),
@@ -340,25 +355,7 @@ class DpsBuilder
 
         foreach ($items as $item) {
             $doc = $this->el($group, 'documentos');
-            match ($item['kind']) {
-                'dfe' => (function () use ($doc, $item) {
-                    $dfe = $this->el($doc, 'dFeNacional');
-                    $this->el($dfe, 'tipoChaveDFe', (string) $item['dfe_type']);
-                    $this->optional($dfe, 'xTipoChaveDFe', NfseText::clean($item['dfe_type_description'] ?? null));
-                    $this->el($dfe, 'chaveDFe', (string) $item['access_key']);
-                })(),
-                'fiscal_document' => (function () use ($doc, $item) {
-                    $other = $this->el($doc, 'docFiscalOutro');
-                    $this->el($other, 'cMunDocFiscal', (string) $item['city_code']);
-                    $this->el($other, 'nDocFiscal', NfseText::clean($item['number']) ?? '');
-                    $this->el($other, 'xDocFiscal', NfseText::clean($item['description']) ?? '');
-                })(),
-                default => (function () use ($doc, $item) {
-                    $other = $this->el($doc, 'docOutro');
-                    $this->el($other, 'nDoc', NfseText::clean($item['number']) ?? '');
-                    $this->el($other, 'xDoc', NfseText::clean($item['description']) ?? '');
-                })(),
-            };
+            $this->referencedDocument($doc, $item);
 
             if (! empty($item['supplier'])) {
                 $supplier = $item['supplier'];
@@ -377,6 +374,112 @@ class DpsBuilder
             $this->el($doc, 'tpReeRepRes', (string) $item['type']);
             $this->optional($doc, 'xTpReeRepRes', NfseText::clean($item['type_description'] ?? null));
             $this->el($doc, 'vlrReeRepRes', NfseText::money($item['amount']));
+        }
+    }
+
+    /** Documento do repositório nacional, fiscal fora dele ou não fiscal (dFeNacional / docFiscalOutro / docOutro). */
+    private function referencedDocument(DOMElement $doc, array $item): void
+    {
+        match ($item['kind']) {
+            'dfe' => (function () use ($doc, $item) {
+                $dfe = $this->el($doc, 'dFeNacional');
+                $this->el($dfe, 'tipoChaveDFe', (string) $item['dfe_type']);
+                $this->optional($dfe, 'xTipoChaveDFe', NfseText::clean($item['dfe_type_description'] ?? null));
+                $this->el($dfe, 'chaveDFe', (string) $item['access_key']);
+            })(),
+            'fiscal_document' => (function () use ($doc, $item) {
+                $other = $this->el($doc, 'docFiscalOutro');
+                $this->el($other, 'cMunDocFiscal', (string) $item['city_code']);
+                $this->el($other, 'nDocFiscal', NfseText::clean($item['number']) ?? '');
+                $this->el($other, 'xDocFiscal', NfseText::clean($item['description']) ?? '');
+            })(),
+            default => (function () use ($doc, $item) {
+                $other = $this->el($doc, 'docOutro');
+                $this->el($other, 'nDoc', NfseText::clean($item['number']) ?? '');
+                $this->el($other, 'xDoc', NfseText::clean($item['description']) ?? '');
+            })(),
+        };
+    }
+
+    /**
+     * NT 009: vDedRed e o gReeRepRes do IBS/CBS viraram um grupo só, vAjusteBC. O percentual ou valor
+     * de dedução do ISSQN continua opcional, e documentos de dedução e de reembolso vão na mesma lista.
+     */
+    private function baseAdjustments(DOMElement $valores, Invoice $invoice, Issuer $issuer): void
+    {
+        $documents = $invoice->deduction_documents ?? [];
+        $reimbursements = $invoice->ibs_cbs['reimbursements'] ?? [];
+        if ($invoice->deduction_percent === null && $invoice->deduction_amount === null && $documents === [] && $reimbursements === []) {
+            return;
+        }
+
+        $group = $this->el($valores, 'vAjusteBC');
+        if ($invoice->deduction_percent !== null) {
+            $this->el($group, 'pAjusteBCISSQN', NfseText::money($invoice->deduction_percent));
+        } elseif ($invoice->deduction_amount !== null) {
+            $this->el($group, 'vAjusteBCISSQN', NfseText::money($invoice->deduction_amount));
+        }
+
+        if ($documents === [] && $reimbursements === []) {
+            return;
+        }
+
+        $list = $this->el($group, 'documentos');
+        foreach ($documents as $document) {
+            $this->deductionAdjustment($list, $document, $issuer);
+        }
+        foreach ($reimbursements as $item) {
+            $this->reimbursementAdjustment($list, $item);
+        }
+    }
+
+    /** @param  array<string, mixed>  $document */
+    private function deductionAdjustment(DOMElement $list, array $document, Issuer $issuer): void
+    {
+        $doc = $this->el($list, 'docAjusteBC');
+        $this->el($doc, 'tpAjusteBC', (string) $document['reason']);
+        $this->optional($doc, 'xTpAjusteBC', NfseText::clean($document['reason_description'] ?? null));
+        $this->el($doc, 'vTotDoc', NfseText::money($document['deductible_amount']));
+        $this->el($doc, 'vAjusteAplic', NfseText::money($document['amount']));
+        $this->el($doc, 'dtEmiDoc', $document['issued_on']);
+
+        // O grupo novo só distingue documento do repositório nacional, documento fiscal fora dele
+        // (que exige o município emissor) e documento não fiscal. NFS-e municipal e nota em papel
+        // viram documento fiscal; sem município informado, vale o do fornecedor e, na falta, o do emitente.
+        $city = $document['city_code'] ?? $document['supplier']['address']['city_code'] ?? $issuer->city_code;
+        $this->referencedDocument($doc, match ($document['kind']) {
+            Invoice::DEDUCTION_DOC_NFSE => ['kind' => 'dfe', 'dfe_type' => '1', 'access_key' => $document['access_key']],
+            Invoice::DEDUCTION_DOC_NFE => ['kind' => 'dfe', 'dfe_type' => '2', 'access_key' => $document['access_key']],
+            Invoice::DEDUCTION_DOC_MUNICIPAL_NFSE => ['kind' => 'fiscal_document', 'city_code' => $city, 'number' => $document['number'],
+                'description' => 'NFS-e do padrão municipal, código de verificação '.$document['verification_code']],
+            Invoice::DEDUCTION_DOC_PAPER => ['kind' => 'fiscal_document', 'city_code' => $city, 'number' => $document['number'],
+                'description' => 'NF/NFS em papel, modelo '.$document['model'].', série '.$document['series']],
+            Invoice::DEDUCTION_DOC_FISCAL => ['kind' => 'fiscal_document', 'city_code' => $city, 'number' => $document['number'],
+                'description' => Invoice::DEDUCTION_DOCUMENT_LABELS[Invoice::DEDUCTION_DOC_FISCAL]],
+            default => ['kind' => 'other_document', 'number' => $document['number'],
+                'description' => Invoice::DEDUCTION_DOCUMENT_LABELS[Invoice::DEDUCTION_DOC_OTHER]],
+        });
+
+        if (! empty($document['supplier'])) {
+            $this->person($doc, 'fornec', $document['supplier']);
+        }
+    }
+
+    /** @param  array<string, mixed>  $item */
+    private function reimbursementAdjustment(DOMElement $list, array $item): void
+    {
+        $doc = $this->el($list, 'docAjusteBC');
+        // Os tipos de reembolso do leiaute anterior (01 a 04 e 99) viraram 101 a 104 e 199.
+        $this->el($doc, 'tpAjusteBC', '1'.$item['type']);
+        $this->optional($doc, 'xTpAjusteBC', NfseText::clean($item['type_description'] ?? null));
+        $this->el($doc, 'vTotDoc', NfseText::money($item['amount']));
+        $this->el($doc, 'vAjusteAplic', NfseText::money($item['amount']));
+        $this->el($doc, 'dtEmiDoc', $item['issued_on']);
+        $this->el($doc, 'dtCompDoc', $item['competence_on']);
+        $this->referencedDocument($doc, $item);
+
+        if (! empty($item['supplier'])) {
+            $this->person($doc, 'fornec', $item['supplier']);
         }
     }
 
@@ -459,10 +562,12 @@ class DpsBuilder
      *
      * @param  array{cst: string, class_code: string, operation_code: string, final_consumer?: bool|null}  $codes
      */
-    private function ibsCbs(DOMElement $inf, array $codes): void
+    private function ibsCbs(DOMElement $inf, array $codes, bool $nt009, string $serviceCity): void
     {
         $group = $this->el($inf, 'IBSCBS');
-        $this->el($group, 'finNFSe', self::FIN_NFSE_REGULAR);
+        if (! $nt009) {
+            $this->el($group, 'finNFSe', self::FIN_NFSE_REGULAR);
+        }
         if (isset($codes['final_consumer'])) {
             $this->el($group, 'indFinal', $codes['final_consumer'] ? '1' : '0');
         }
@@ -486,6 +591,12 @@ class DpsBuilder
         if (! empty($codes['property'])) {
             $property = $codes['property'];
             $imovel = $this->el($group, 'imovel');
+            if ($nt009) {
+                // A NT 009 pede o município do imóvel e põe inscrição/CIB/endereço em gUnidImob.
+                // Serviço sobre imóvel é prestado onde ele fica, então o local da prestação serve.
+                $this->el($imovel, 'cMun', $serviceCity);
+                $imovel = $this->el($imovel, 'gUnidImob');
+            }
             $this->optional($imovel, 'inscImobFisc', NfseText::clean($property['registration'] ?? null));
             ! empty($property['cib'])
                 ? $this->el($imovel, 'cCIB', strtoupper($property['cib']))
@@ -493,6 +604,14 @@ class DpsBuilder
         }
 
         $valores = $this->el($group, 'valores');
+        if ($nt009) {
+            // Na NT 009 CST e cClassTrib sobem para trib, e os reembolsos foram para valores/vAjusteBC.
+            $trib = $this->el($valores, 'trib');
+            $this->el($trib, 'CST', $codes['cst']);
+            $this->el($trib, 'cClassTrib', $codes['class_code']);
+
+            return;
+        }
         if (! empty($codes['reimbursements'])) {
             $this->reimbursements($valores, $codes['reimbursements']);
         }

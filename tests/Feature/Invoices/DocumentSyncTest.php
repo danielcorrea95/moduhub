@@ -207,9 +207,17 @@ class DocumentSyncTest extends TestCase
 
     public function test_every_event_request_follows_the_schema(): void
     {
-        $issuer = new Issuer(['cnpj' => self::ISSUER_CNPJ, 'environment' => Issuer::ENV_RESTRICTED]);
         $builder = app(EventRequestBuilder::class);
 
+        // Produção e produção restrita estão em leiautes diferentes (NT 009); os dois precisam aceitar.
+        foreach (Issuer::ENVIRONMENTS as $environment) {
+            $issuer = new Issuer(['cnpj' => self::ISSUER_CNPJ, 'environment' => $environment]);
+            $this->assertEventsFollowTheSchema($builder, $issuer);
+        }
+    }
+
+    private function assertEventsFollowTheSchema(EventRequestBuilder $builder, Issuer $issuer): void
+    {
         foreach ([
             [EventRequestBuilder::CANCELLATION_REVIEW, '9', 'Pedido fora do prazo de cancelamento'],
             [EventRequestBuilder::TAKER_CONFIRMATION, null, null],
@@ -221,7 +229,7 @@ class DocumentSyncTest extends TestCase
         ] as [$event, $code, $reason]) {
             $doc = $builder->build(str_repeat('1', 50), $issuer, $event, $code, $reason);
             // A assinatura é opcional no XSD; o que importa aqui é a estrutura de cada evento.
-            app(XmlSchemaValidator::class)->assertValid($doc, 'pedRegEvento_v1.01.xsd');
+            app(XmlSchemaValidator::class)->assertValid($doc, 'pedRegEvento_v1.01.xsd', $issuer);
             $this->assertStringContainsString('Id="PRE'.str_repeat('1', 50).$event.'"', $doc->saveXML());
         }
     }

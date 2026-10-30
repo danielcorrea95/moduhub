@@ -177,6 +177,11 @@ AWS_KMS_KEY_ID=arn:aws:kms:sa-east-1:851725549821:key/...   # alias/moduhub-file
 # NFS-e
 INVOICES_SEFIN_DRIVER=http
 INVOICES_SEFIN_TIMEOUT=30
+# Opcional: pasta de resources/nfse/schemas por ambiente. Padrão: restrita na NT 009, produção no 1.01.
+# Quando a Sefin publicar a NT 009 em produção, troque a produção para 1.01-nt009 (e confira o pacote).
+# NFS-e rejeitada com E1235 (esquema XML) gera log "NFS-e rejeitada por esquema XML": sinal de leiaute novo.
+INVOICES_LAYOUT_RESTRICTED=1.01-nt009
+INVOICES_LAYOUT_PRODUCTION=1.01
 
 # Certificados (docs/runbooks/certificados.md)
 SIGNATURES_PLATFORM_CNPJ=00.000.000/0001-00   # CNPJ da Moduhub: o certificado enviado em /admin/certificado precisa ser dele

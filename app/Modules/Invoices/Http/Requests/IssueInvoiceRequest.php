@@ -295,7 +295,12 @@ class IssueInvoiceRequest extends FormRequest
                     $is(Invoice::DEDUCTION_DOC_NFE) => 'required|digits:44',
                     default => 'prohibited',
                 },
-                "{$key}.city_code" => $is(Invoice::DEDUCTION_DOC_MUNICIPAL_NFSE) ? ['required', 'digits:7', new IbgeCityCode] : 'prohibited',
+                // No leiaute da NT 009 nota em papel e outro documento fiscal levam o município emissor.
+                "{$key}.city_code" => match (true) {
+                    $is(Invoice::DEDUCTION_DOC_MUNICIPAL_NFSE) => ['required', 'digits:7', new IbgeCityCode],
+                    $is(Invoice::DEDUCTION_DOC_PAPER, Invoice::DEDUCTION_DOC_FISCAL) => ['nullable', 'digits:7', new IbgeCityCode],
+                    default => 'prohibited',
+                },
                 "{$key}.number" => match (true) {
                     $is(Invoice::DEDUCTION_DOC_MUNICIPAL_NFSE) => 'required|digits_between:1,15',
                     $is(Invoice::DEDUCTION_DOC_PAPER) => 'required|digits_between:1,7',

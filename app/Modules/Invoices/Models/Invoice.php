@@ -24,6 +24,9 @@ class Invoice extends Model
 
     public const STATUS_REJECTED = 'rejected';
 
+    /** Código da Sefin para "Falha no esquema XML do DF-e". */
+    public const REJECTION_SCHEMA = 'E1235';
+
     public const STATUS_CANCELLED = 'cancelled';
 
     /** Substituída por outra NFS-e: a Sefin registra o cancelamento por substituição (e105102) sozinha. */
@@ -303,6 +306,13 @@ class Invoice extends Model
     public function isRejected(): bool
     {
         return $this->status === self::STATUS_REJECTED;
+    }
+
+    /** A Sefin recusou o formato do XML (E1235), não os dados: a correção é no gerador da DPS, não na nota. */
+    public function isRejectedByLayout(): bool
+    {
+        return $this->isRejected()
+            && collect($this->rejection ?? [])->contains(fn ($error) => ($error['code'] ?? null) === self::REJECTION_SCHEMA);
     }
 
     public function isCancelled(): bool

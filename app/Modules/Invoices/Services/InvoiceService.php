@@ -15,6 +15,7 @@ use App\Modules\Invoices\Services\Nfse\CancellationBuilder;
 use App\Modules\Invoices\Services\Nfse\DpsBuilder;
 use App\Modules\Invoices\Services\Nfse\IssuerCredentialsLoader;
 use App\Modules\Invoices\Services\Nfse\NfseDocument;
+use App\Modules\Invoices\Services\Nfse\NfseLayout;
 use App\Modules\Invoices\Services\Nfse\XmlSchemaValidator;
 use App\Modules\Invoices\Services\Nfse\XmlSigner;
 use App\Modules\Invoices\Services\Sefin\SefinResponse;
@@ -25,6 +26,7 @@ use DOMDocument;
 use DOMElement;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 
 class InvoiceService implements InvoiceServiceContract
@@ -124,7 +126,7 @@ class InvoiceService implements InvoiceServiceContract
             $doc = $this->dps->build($invoice, $locked);
             $this->signer->sign($this->signedElement($doc, 'infDPS'), $credentials);
             // Se o XML não passa no schema, a exceção desfaz a transação e o número da DPS não é consumido.
-            $this->schema->assertValid($doc, 'DPS_v1.01.xsd');
+            $this->schema->assertValid($doc, 'DPS_v1.01.xsd', $locked);
 
             $invoice->dps_xml = $doc->saveXML();
             $invoice->save();
@@ -187,7 +189,7 @@ class InvoiceService implements InvoiceServiceContract
 
         $doc = $this->cancellation->build($invoice, $issuer, $reasonCode, $reason);
         $this->signer->sign($this->signedElement($doc, 'infPedReg'), $credentials);
-        $this->schema->assertValid($doc, 'pedRegEvento_v1.01.xsd');
+        $this->schema->assertValid($doc, 'pedRegEvento_v1.01.xsd', $issuer);
         $signed = $doc->saveXML();
 
         try {
@@ -292,6 +294,16 @@ class InvoiceService implements InvoiceServiceContract
             'last_error' => null,
             'last_attempt_at' => now(),
         ])->save();
+
+        if ($invoice->isRejectedByLayout()) {
+            // O XML passou no nosso XSD e a Sefin recusou: o leiaute dela mudou e o pacote em resources/nfse/schemas ficou velho.
+            Log::error('NFS-e rejeitada por esquema XML: conferir o leiaute vigente da Sefin.', [
+                'invoice_id' => $invoice->getKey(),
+                'environment' => $invoice->environment,
+                'layout' => NfseLayout::for($invoice->issuer),
+                'errors' => $response->errors,
+            ]);
+        }
 
         $this->fire($invoice, 'invoice.rejected', ['errors' => $response->errors]);
 

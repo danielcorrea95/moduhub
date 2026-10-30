@@ -2,6 +2,7 @@
 
 namespace App\Modules\Invoices\Services\Nfse;
 
+use App\Modules\Invoices\Models\Issuer;
 use DOMDocument;
 use Illuminate\Validation\ValidationException;
 
@@ -11,9 +12,9 @@ use Illuminate\Validation\ValidationException;
  */
 class XmlSchemaValidator
 {
-    public function assertValid(DOMDocument $doc, string $schema): void
+    public function assertValid(DOMDocument $doc, string $schema, Issuer $issuer): void
     {
-        $path = resource_path('nfse/schemas/'.config('invoices.layout_version').'/'.$schema);
+        $path = resource_path('nfse/schemas/'.NfseLayout::for($issuer).'/'.$schema);
 
         $previous = libxml_use_internal_errors(true);
         libxml_clear_errors();

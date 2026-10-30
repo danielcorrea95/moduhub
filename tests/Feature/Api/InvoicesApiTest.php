@@ -355,7 +355,9 @@ class InvoicesApiTest extends TestCase
             ->assertJsonPath('data.values.deduction.documents.0.access_key', '35261011222333000181550010000012341000012345')
             ->assertJsonPath('data.values.deduction.documents.0.amount', '600.00')
             ->assertJsonMissingPath('data.values.deduction.documents.0.supplier');
-        $this->assertStringContainsString('<vDedRed><documentos><docDedRed><chNFe>', $this->sefin()->requests[0]['xml']);
+        // Produção restrita usa o leiaute da NT 009: a dedução por documento vai em vAjusteBC.
+        $this->assertStringContainsString('<vAjusteBC><documentos><docAjusteBC><tpAjusteBC>2</tpAjusteBC>', $this->sefin()->requests[0]['xml']);
+        $this->assertStringContainsString('<dFeNacional><tipoChaveDFe>2</tipoChaveDFe><chaveDFe>35261011222333000181550010000012341000012345</chaveDFe>', $this->sefin()->requests[0]['xml']);
 
         $this->withToken($key)->postJson('/api/v1/invoices', $this->invoicePayload([
             'external_id' => 'pedido-1002',
@@ -448,7 +450,7 @@ class InvoicesApiTest extends TestCase
         $xml = $this->sefin()->requests[0]['xml'];
         $this->assertStringContainsString('<obra><cObra>OBRA-1</cObra></obra><infoCompl><xInfComp>Aluno: Fulano</xInfComp></infoCompl>', $xml);
         $this->assertStringContainsString('<indDest>1</indDest><dest><CNPJ>11222333000181</CNPJ>', $xml);
-        $this->assertStringContainsString('<imovel><end><CEP>01310100</CEP>', $xml);
+        $this->assertStringContainsString('<imovel><cMun>4313409</cMun><gUnidImob><end><CEP>01310100</CEP>', $xml);
 
         $this->withToken($key)->postJson('/api/v1/invoices', $this->invoicePayload([
             'external_id' => 'pedido-2',

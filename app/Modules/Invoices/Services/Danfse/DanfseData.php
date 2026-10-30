@@ -150,7 +150,7 @@ final class DanfseData
             'dps_emitted_at' => $this->date($dps('n:dhEmi'), 'd/m/Y H:i:s'),
             'emitter' => self::EMITTER[$dps('n:tpEmit')] ?? self::EMPTY,
             'status' => $this->limit(self::STATUS[$v('n:cStat')] ?? ($v('n:cStat') ?? self::EMPTY), 40),
-            'finality' => self::FINALITY[$dps('n:IBSCBS/n:finNFSe') ?? ''] ?? self::EMPTY,
+            'finality' => self::FINALITY[$dps('n:finNFSe') ?? $dps('n:IBSCBS/n:finNFSe') ?? ''] ?? self::EMPTY,
 
             'provider' => $this->provider($xp, $dps, $cityNames),
             'taker' => $this->party($xp, '//n:infNFSe/n:DPS/n:infDPS/n:toma', $cityNames),
@@ -174,7 +174,8 @@ final class DanfseData
                 'suspension_process' => $dps('n:valores/n:trib/n:tribMun/n:exigSusp/n:nProcesso') ?? self::EMPTY,
                 'benefit' => self::BENEFIT[$v('n:valores/n:tpBM') ?? ''] ?? self::EMPTY,
                 'benefit_amount' => $this->money($v('n:valores/n:vCalcBM') ?? $dps('n:valores/n:trib/n:tribMun/n:BM/n:vRedBCBM')),
-                'deductions' => $this->money($dps('n:valores/n:vDedRed/n:vDR') ?? $v('n:valores/n:vCalcDR')),
+                'deductions' => $this->money($dps('n:valores/n:vDedRed/n:vDR') ?? $dps('n:valores/n:vAjusteBC/n:vAjusteBCISSQN')
+                    ?? $v('n:valores/n:vCalcDR') ?? $v('n:valores/n:vCalcAjusteBCISSQN')),
                 'unconditional_discount' => $this->money($dps('n:valores/n:vDescCondIncond/n:vDescIncond')),
                 'base' => $this->money($v('n:valores/n:vBC')),
                 'rate' => $this->percent($v('n:valores/n:pAliqAplic')),
@@ -290,8 +291,9 @@ final class DanfseData
         $v = fn (string $path): ?string => $this->value($xp, '//n:infNFSe/'.$path);
         $dps = fn (string $path): ?string => $v('n:DPS/n:infDPS/n:IBSCBS/'.$path);
 
-        $cst = $dps('n:valores/n:trib/n:gIBSCBS/n:CST');
-        $class = $dps('n:valores/n:trib/n:gIBSCBS/n:cClassTrib');
+        // A NT 009 subiu CST e cClassTrib de trib/gIBSCBS para trib.
+        $cst = $dps('n:valores/n:trib/n:CST') ?? $dps('n:valores/n:trib/n:gIBSCBS/n:CST');
+        $class = $dps('n:valores/n:trib/n:cClassTrib') ?? $dps('n:valores/n:trib/n:gIBSCBS/n:cClassTrib');
         $incidence = array_filter([$dps('n:cIndOp'), $v('n:IBSCBS/n:cLocalidadeIncid'), $v('n:IBSCBS/n:xLocalidadeIncid')]);
         if ($v('n:IBSCBS/n:cLocalidadeIncid') !== null) {
             $incidence[] = $this->uf($v('n:IBSCBS/n:cLocalidadeIncid'));
@@ -306,7 +308,7 @@ final class DanfseData
             'incidence' => $incidence === [] ? self::EMPTY : $this->limit(implode(' / ', array_filter($incidence)), 56),
             'exclusions' => $this->sumMoney(
                 $v('n:DPS/n:infDPS/n:valores/n:vDescCondIncond/n:vDescIncond'),
-                $v('n:IBSCBS/n:valores/n:vCalcReeRepRes'),
+                $v('n:IBSCBS/n:valores/n:vCalcReeRepRes') ?? $v('n:IBSCBS/n:valores/n:vCalcAjusteBCIBSCBS'),
                 $v('n:IBSCBS') !== null ? $v('n:valores/n:vISSQN') : null,
                 $v('n:IBSCBS') !== null ? $v('n:DPS/n:infDPS/n:valores/n:trib/n:tribFed/n:piscofins/n:vPis') : null,
                 $v('n:IBSCBS') !== null ? $v('n:DPS/n:infDPS/n:valores/n:trib/n:tribFed/n:piscofins/n:vCofins') : null,
@@ -332,7 +334,8 @@ final class DanfseData
             $this->labelled('NFS-e Subst.:', $dps('n:subst/n:chSubstda')),
             $this->labelled('Doc. Ref.:', $dps('n:serv/n:infoCompl/n:docRef')),
             $this->labelled('Cod. Obra:', $dps('n:serv/n:obra/n:cObra')),
-            $this->labelled('Insc. Imob.:', $dps('n:IBSCBS/n:imovel/n:inscImobFisc') ?? $dps('n:serv/n:obra/n:inscImobFisc')),
+            $this->labelled('Insc. Imob.:', $dps('n:IBSCBS/n:imovel/n:inscImobFisc') ?? $dps('n:IBSCBS/n:imovel/n:gUnidImob/n:inscImobFisc')
+                ?? $dps('n:serv/n:obra/n:inscImobFisc')),
             $this->labelled('Cod. Evt.:', $dps('n:serv/n:atvEvento/n:idAtvEvt')),
             $this->labelled('Doc. Tec.:', $dps('n:serv/n:infoCompl/n:idDocTec')),
             $this->labelled('Núm. Ped.:', $dps('n:serv/n:infoCompl/n:xPed')),

@@ -184,6 +184,7 @@ class InvoiceController extends Controller
             'invoice' => InvoiceResource::make($invoice)->resolve($request),
             'canCancel' => $request->user()->can('cancel', $invoice),
             'canReplace' => $request->user()->can('replace', $invoice),
+            'rejectedByLayout' => $invoice->isRejectedByLayout(),
             'events' => $invoice->access_key === null ? [] : InvoiceEventResource::collection($this->documents->eventsFor($invoice->access_key))->resolve($request),
             'cities' => collect([
                 $invoice->service['city_code'] ?? null,

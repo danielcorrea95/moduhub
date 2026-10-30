@@ -95,7 +95,7 @@ class InvoiceEventService
         $credentials = $this->credentials->load($issuer, CertificateEvent::PURPOSE_EVENT_SIGNATURE, ['access_key' => $accessKey, 'event' => $event]);
         $doc = $this->events->build($accessKey, $issuer, $event, $reasonCode, $reason);
         $this->signer->sign($this->signedElement($doc), $credentials);
-        $this->schema->assertValid($doc, 'pedRegEvento_v1.01.xsd');
+        $this->schema->assertValid($doc, 'pedRegEvento_v1.01.xsd', $issuer);
 
         try {
             $response = $this->sefin->registerEvent($issuer, $accessKey, $doc->saveXML());

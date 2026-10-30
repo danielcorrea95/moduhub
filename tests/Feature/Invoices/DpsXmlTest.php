@@ -7,6 +7,7 @@ use App\Modules\Invoices\Models\Issuer;
 use App\Modules\Invoices\Services\Nfse\CancellationBuilder;
 use App\Modules\Invoices\Services\Nfse\DpsBuilder;
 use App\Modules\Invoices\Services\Nfse\IssuerCredentials;
+use App\Modules\Invoices\Services\Nfse\NfseLayout;
 use App\Modules\Invoices\Services\Nfse\XmlSchemaValidator;
 use App\Modules\Invoices\Services\Nfse\XmlSigner;
 use DOMDocument;
@@ -18,12 +19,131 @@ use Tests\TestCase;
 
 /**
  * DPS e pedido de cancelamento contra os XSD oficiais v1.01, e a assinatura conferida como a Sefin confere.
+ * Os testes sem "nt009" no nome usam o pacote de produção; os demais, o leiaute da NT 009 (produção restrita).
  */
 class DpsXmlTest extends TestCase
 {
     use CreatesPkcs12;
 
     private const CNPJ = '12345678000195';
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        config(['invoices.layouts.restricted' => NfseLayout::V1_01]);
+    }
+
+    public function test_nt009_dps_moves_fin_nfse_and_service_description(): void
+    {
+        config(['invoices.layouts.restricted' => NfseLayout::V1_01_NT009]);
+        [$issuer, $invoice] = $this->fixtures();
+        $invoice->service = [...$invoice->service, 'nbs_code' => '115022000'];
+
+        $doc = app(DpsBuilder::class)->build($invoice, $issuer);
+        app(XmlSigner::class)->sign($this->element($doc, 'infDPS'), $this->credentials());
+        app(XmlSchemaValidator::class)->assertValid($doc, 'DPS_v1.01.xsd', $issuer);
+
+        $xml = $doc->saveXML();
+        $this->assertStringContainsString('<tpEmit>1</tpEmit><finNFSe>0</finNFSe><cLocEmi>4313409</cLocEmi>', $xml);
+        $this->assertStringContainsString('<cTribNac>010701</cTribNac><cNBS>115022000</cNBS><xDescServ>Suporte técnico', $xml);
+        $this->assertSignatureIsValid($xml, 'infDPS');
+    }
+
+    public function test_nt009_old_layout_is_refused_by_the_new_schema(): void
+    {
+        [$issuer, $invoice] = $this->fixtures();
+        $doc = app(DpsBuilder::class)->build($invoice, $issuer);
+
+        config(['invoices.layouts.restricted' => NfseLayout::V1_01_NT009]);
+        $this->expectException(ValidationException::class);
+        app(XmlSchemaValidator::class)->assertValid($doc, 'DPS_v1.01.xsd', $issuer);
+    }
+
+    public function test_nt009_deductions_and_reimbursements_share_the_base_adjustment_group(): void
+    {
+        config(['invoices.layouts.restricted' => NfseLayout::V1_01_NT009]);
+        [$issuer, $invoice] = $this->fixtures();
+        $base = ['reason' => '2', 'issued_on' => '2026-10-01', 'deductible_amount' => '100.00', 'amount' => '50.00'];
+        $invoice->forceFill([
+            'deduction_documents' => [
+                ['kind' => Invoice::DEDUCTION_DOC_NFSE, 'access_key' => str_repeat('1', 50), ...$base,
+                    'supplier' => ['document' => '11222333000181', 'name' => 'Fornecedor de Materiais Ltda']],
+                ['kind' => Invoice::DEDUCTION_DOC_NFE, 'access_key' => str_repeat('2', 44), ...$base],
+                ['kind' => Invoice::DEDUCTION_DOC_MUNICIPAL_NFSE, 'city_code' => '3550308', 'number' => '1234', 'verification_code' => 'AbC12345', ...$base],
+                ['kind' => Invoice::DEDUCTION_DOC_PAPER, 'number' => '581', 'model' => '1', 'series' => 'A1', ...$base],
+                ['kind' => Invoice::DEDUCTION_DOC_FISCAL, 'number' => 'CT-e 9988', 'city_code' => '3304557', ...$base],
+                ['kind' => Invoice::DEDUCTION_DOC_OTHER, 'number' => 'Recibo 17', ...$base, 'reason' => '99', 'reason_description' => 'Taxa de cartório'],
+            ],
+            'ibs_cbs' => [
+                'cst' => '000', 'class_code' => '000001', 'operation_code' => '100301', 'final_consumer' => false,
+                'property' => ['registration' => 'IPTU-9', 'cib' => 'AB12CD34'],
+                'reimbursements' => [
+                    ['kind' => 'dfe', 'dfe_type' => '2', 'access_key' => str_repeat('5', 44), 'issued_on' => '2026-10-01', 'competence_on' => '2026-10-01', 'type' => '03', 'amount' => '100.00',
+                        'supplier' => ['document' => '11222333000181', 'name' => 'Gráfica']],
+                    ['kind' => 'other_document', 'number' => 'R-1', 'description' => 'Recibo', 'issued_on' => '2026-10-01', 'competence_on' => '2026-10-01', 'type' => '99', 'type_description' => 'Taxa', 'amount' => '10.00'],
+                ],
+            ],
+        ]);
+
+        $doc = app(DpsBuilder::class)->build($invoice, $issuer);
+        app(XmlSigner::class)->sign($this->element($doc, 'infDPS'), $this->credentials());
+        app(XmlSchemaValidator::class)->assertValid($doc, 'DPS_v1.01.xsd', $issuer);
+
+        $xml = $doc->saveXML();
+        $this->assertStringNotContainsString('vDedRed', $xml);
+        $this->assertStringNotContainsString('gReeRepRes', $xml);
+        $this->assertStringContainsString(
+            '<vAjusteBC><documentos><docAjusteBC><tpAjusteBC>2</tpAjusteBC><vTotDoc>100.00</vTotDoc><vAjusteAplic>50.00</vAjusteAplic><dtEmiDoc>2026-10-01</dtEmiDoc>'
+            .'<dFeNacional><tipoChaveDFe>1</tipoChaveDFe><chaveDFe>'.str_repeat('1', 50).'</chaveDFe></dFeNacional>'
+            .'<fornec><CNPJ>11222333000181</CNPJ><xNome>Fornecedor de Materiais Ltda</xNome></fornec></docAjusteBC>',
+            $xml,
+        );
+        $this->assertStringContainsString('<docFiscalOutro><cMunDocFiscal>3550308</cMunDocFiscal><nDocFiscal>1234</nDocFiscal><xDocFiscal>NFS-e do padrão municipal, código de verificação AbC12345</xDocFiscal></docFiscalOutro>', $xml);
+        $this->assertStringContainsString('<docFiscalOutro><cMunDocFiscal>4313409</cMunDocFiscal><nDocFiscal>581</nDocFiscal>', $xml, 'Sem município, vale o do emitente.');
+        $this->assertStringContainsString('<cMunDocFiscal>3304557</cMunDocFiscal><nDocFiscal>CT-e 9988</nDocFiscal>', $xml);
+        $this->assertStringContainsString('<tpAjusteBC>99</tpAjusteBC><xTpAjusteBC>Taxa de cartório</xTpAjusteBC>', $xml);
+        $this->assertStringContainsString('<tpAjusteBC>103</tpAjusteBC><vTotDoc>100.00</vTotDoc><vAjusteAplic>100.00</vAjusteAplic><dtEmiDoc>2026-10-01</dtEmiDoc><dtCompDoc>2026-10-01</dtCompDoc><dFeNacional>', $xml);
+        $this->assertStringContainsString('<tpAjusteBC>199</tpAjusteBC><xTpAjusteBC>Taxa</xTpAjusteBC>', $xml);
+        $this->assertSame(8, substr_count($xml, '<docAjusteBC>'));
+        $this->assertStringContainsString(
+            '<IBSCBS><indFinal>0</indFinal><cIndOp>100301</cIndOp><indDest>0</indDest>'
+            .'<imovel><cMun>4313409</cMun><gUnidImob><inscImobFisc>IPTU-9</inscImobFisc><cCIB>AB12CD34</cCIB></gUnidImob></imovel>'
+            .'<valores><trib><CST>000</CST><cClassTrib>000001</cClassTrib></trib></valores></IBSCBS></infDPS>',
+            $xml,
+        );
+    }
+
+    public function test_nt009_percent_or_amount_deduction(): void
+    {
+        config(['invoices.layouts.restricted' => NfseLayout::V1_01_NT009]);
+
+        foreach ([['deduction_percent' => '10.00'], ['deduction_amount' => '200.00']] as $deduction) {
+            [$issuer, $invoice] = $this->fixtures();
+            $invoice->forceFill($deduction);
+
+            $doc = app(DpsBuilder::class)->build($invoice, $issuer);
+            app(XmlSchemaValidator::class)->assertValid($doc, 'DPS_v1.01.xsd', $issuer);
+
+            $this->assertStringContainsString(
+                isset($deduction['deduction_percent']) ? '<vAjusteBC><pAjusteBCISSQN>10.00</pAjusteBCISSQN></vAjusteBC>' : '<vAjusteBC><vAjusteBCISSQN>200.00</vAjusteBCISSQN></vAjusteBC>',
+                $doc->saveXML(),
+            );
+        }
+    }
+
+    public function test_nt009_cancellation_request_follows_the_schema(): void
+    {
+        config(['invoices.layouts.restricted' => NfseLayout::V1_01_NT009]);
+        [$issuer, $invoice] = $this->fixtures();
+        $invoice->access_key = str_repeat('1', 50);
+
+        $doc = app(CancellationBuilder::class)->build($invoice, $issuer, Invoice::CANCEL_ISSUE_ERROR, 'Valor do serviço informado errado');
+        app(XmlSigner::class)->sign($this->element($doc, 'infPedReg'), $this->credentials());
+        app(XmlSchemaValidator::class)->assertValid($doc, 'pedRegEvento_v1.01.xsd', $issuer);
+
+        $this->assertSignatureIsValid($doc->saveXML(), 'infPedReg');
+    }
 
     public function test_dps_follows_the_official_schema_and_signature_verifies(): void
     {
@@ -32,7 +152,7 @@ class DpsXmlTest extends TestCase
 
         $doc = app(DpsBuilder::class)->build($invoice, $issuer);
         app(XmlSigner::class)->sign($this->element($doc, 'infDPS'), $credentials);
-        app(XmlSchemaValidator::class)->assertValid($doc, 'DPS_v1.01.xsd');
+        app(XmlSchemaValidator::class)->assertValid($doc, 'DPS_v1.01.xsd', $issuer);
 
         $xml = $doc->saveXML();
         $this->assertStringContainsString('<infDPS Id="DPS431340921234567800019500001000000000000042">', $xml);
@@ -52,7 +172,7 @@ class DpsXmlTest extends TestCase
 
         $doc = app(DpsBuilder::class)->build($invoice, $issuer);
         app(XmlSigner::class)->sign($this->element($doc, 'infDPS'), $this->credentials());
-        app(XmlSchemaValidator::class)->assertValid($doc, 'DPS_v1.01.xsd');
+        app(XmlSchemaValidator::class)->assertValid($doc, 'DPS_v1.01.xsd', $issuer);
 
         $this->assertStringContainsString('<indTotTrib>0</indTotTrib>', $doc->saveXML());
         $this->assertStringNotContainsString('regApTribSN', $doc->saveXML());
@@ -66,7 +186,7 @@ class DpsXmlTest extends TestCase
         $doc = app(DpsBuilder::class)->build($invoice, $issuer);
 
         try {
-            app(XmlSchemaValidator::class)->assertValid($doc, 'DPS_v1.01.xsd');
+            app(XmlSchemaValidator::class)->assertValid($doc, 'DPS_v1.01.xsd', $issuer);
             $this->fail('O XML deveria ter sido recusado pelo schema.');
         } catch (ValidationException $e) {
             $this->assertStringContainsString('cTribNac', implode(' ', $e->errors()['dps']));
@@ -84,7 +204,7 @@ class DpsXmlTest extends TestCase
 
         $doc = app(DpsBuilder::class)->build($invoice, $issuer);
         app(XmlSigner::class)->sign($this->element($doc, 'infDPS'), $this->credentials());
-        app(XmlSchemaValidator::class)->assertValid($doc, 'DPS_v1.01.xsd');
+        app(XmlSchemaValidator::class)->assertValid($doc, 'DPS_v1.01.xsd', $issuer);
 
         $this->assertStringContainsString(
             '<cLocEmi>4313409</cLocEmi><subst><chSubstda>'.str_repeat('3', 50).'</chSubstda><cMotivo>99</cMotivo>'
@@ -123,7 +243,7 @@ class DpsXmlTest extends TestCase
 
         $doc = app(DpsBuilder::class)->build($invoice, $issuer);
         app(XmlSigner::class)->sign($this->element($doc, 'infDPS'), $this->credentials());
-        app(XmlSchemaValidator::class)->assertValid($doc, 'DPS_v1.01.xsd');
+        app(XmlSchemaValidator::class)->assertValid($doc, 'DPS_v1.01.xsd', $issuer);
 
         $xml = $doc->saveXML();
         $this->assertStringContainsString('<toma><NIF>DE123456789</NIF><xNome>Müller GmbH</xNome><end><endExt><cPais>DE</cPais><cEndPost>10115</cEndPost><xCidade>Berlin</xCidade>', $xml);
@@ -145,7 +265,7 @@ class DpsXmlTest extends TestCase
 
         $doc = app(DpsBuilder::class)->build($invoice, $issuer);
         app(XmlSigner::class)->sign($this->element($doc, 'infDPS'), $this->credentials());
-        app(XmlSchemaValidator::class)->assertValid($doc, 'DPS_v1.01.xsd');
+        app(XmlSchemaValidator::class)->assertValid($doc, 'DPS_v1.01.xsd', $issuer);
 
         $xml = $doc->saveXML();
         $this->assertStringContainsString('<toma><cNaoNIF>2</cNaoNIF><xNome>John Doe</xNome></toma>', $xml);
@@ -160,7 +280,7 @@ class DpsXmlTest extends TestCase
 
         $doc = app(DpsBuilder::class)->build($invoice, $issuer);
         app(XmlSigner::class)->sign($this->element($doc, 'infDPS'), $this->credentials());
-        app(XmlSchemaValidator::class)->assertValid($doc, 'DPS_v1.01.xsd');
+        app(XmlSchemaValidator::class)->assertValid($doc, 'DPS_v1.01.xsd', $issuer);
 
         $this->assertStringContainsString(
             '</valores><IBSCBS><finNFSe>0</finNFSe><indFinal>0</indFinal><cIndOp>100301</cIndOp><indDest>0</indDest>'
@@ -185,7 +305,7 @@ class DpsXmlTest extends TestCase
 
         $doc = app(DpsBuilder::class)->build($invoice, $issuer);
         app(XmlSigner::class)->sign($this->element($doc, 'infDPS'), $this->credentials());
-        app(XmlSchemaValidator::class)->assertValid($doc, 'DPS_v1.01.xsd');
+        app(XmlSchemaValidator::class)->assertValid($doc, 'DPS_v1.01.xsd', $issuer);
 
         $xml = $doc->saveXML();
         $tail = '<tpDedRed>2</tpDedRed><dtEmiDoc>2026-10-01</dtEmiDoc><vDedutivelRedutivel>100.00</vDedutivelRedutivel><vDeducaoReducao>50.00</vDeducaoReducao>';
@@ -212,7 +332,7 @@ class DpsXmlTest extends TestCase
 
         $doc = app(DpsBuilder::class)->build($invoice, $issuer);
         app(XmlSigner::class)->sign($this->element($doc, 'infDPS'), $this->credentials());
-        app(XmlSchemaValidator::class)->assertValid($doc, 'DPS_v1.01.xsd');
+        app(XmlSchemaValidator::class)->assertValid($doc, 'DPS_v1.01.xsd', $issuer);
 
         $xml = $doc->saveXML();
         $this->assertStringContainsString('<tribISSQN>1</tribISSQN><exigSusp><tpSusp>1</tpSusp><nProcesso>000000000050012345620268260100</nProcesso></exigSusp><BM><nBM>35503080000012</nBM><pRedBCBM>20.00</pRedBCBM></BM><tpRetISSQN>1</tpRetISSQN>', $xml);
@@ -255,7 +375,7 @@ class DpsXmlTest extends TestCase
 
         $doc = app(DpsBuilder::class)->build($invoice, $issuer);
         app(XmlSigner::class)->sign($this->element($doc, 'infDPS'), $this->credentials());
-        app(XmlSchemaValidator::class)->assertValid($doc, 'DPS_v1.01.xsd');
+        app(XmlSchemaValidator::class)->assertValid($doc, 'DPS_v1.01.xsd', $issuer);
 
         $xml = $doc->saveXML();
         $this->assertStringContainsString('<obra><inscImobFisc>IPTU-123</inscImobFisc><end><CEP>01310100</CEP><xLgr>Av. Paulista</xLgr>', $xml);
@@ -274,7 +394,7 @@ class DpsXmlTest extends TestCase
 
         $doc = app(CancellationBuilder::class)->build($invoice, $issuer, Invoice::CANCEL_ISSUE_ERROR, 'Valor do serviço informado errado');
         app(XmlSigner::class)->sign($this->element($doc, 'infPedReg'), $this->credentials());
-        app(XmlSchemaValidator::class)->assertValid($doc, 'pedRegEvento_v1.01.xsd');
+        app(XmlSchemaValidator::class)->assertValid($doc, 'pedRegEvento_v1.01.xsd', $issuer);
 
         $xml = $doc->saveXML();
         $this->assertStringContainsString('Id="PRE'.str_repeat('1', 50).'101101"', $xml);

@@ -37,4 +37,14 @@ return [
 
     'layout_version' => '1.01',
 
+    /*
+    | Pasta de resources/nfse/schemas usada por ambiente. A produção restrita adotou a NT 009
+    | (pacote de 20/10/2026) mantendo versao="1.01", enquanto a produção segue no pacote de 09/02/2026.
+    | Quando a NT 009 entrar em produção, basta apontar a produção para 1.01-nt009.
+    */
+    'layouts' => [
+        'restricted' => env('INVOICES_LAYOUT_RESTRICTED', '1.01-nt009'),
+        'production' => env('INVOICES_LAYOUT_PRODUCTION', '1.01'),
+    ],
+
 ];
