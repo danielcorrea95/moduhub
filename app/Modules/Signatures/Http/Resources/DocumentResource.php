@@ -28,6 +28,10 @@ class DocumentResource extends JsonResource
             'expires_at' => $this->expires_at?->toIso8601String(),
             'sent_at' => $this->sent_at?->toIso8601String(),
             'completed_at' => $this->completed_at?->toIso8601String(),
+            // A recusa também grava cancelled_at; aqui só sai o cancelamento de quem enviou.
+            'cancelled_at' => $this->status === Document::STATUS_CANCELLED
+                ? $this->cancelled_at?->toIso8601String()
+                : null,
             'created_at' => $this->created_at?->toIso8601String(),
             'downloads' => [
                 'original' => route('api.signatures.documents.download', ['document' => $this->getKey(), 'type' => 'original']),

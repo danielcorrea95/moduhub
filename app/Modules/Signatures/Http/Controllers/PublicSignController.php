@@ -51,6 +51,13 @@ class PublicSignController extends Controller
             ]);
         }
 
+        if ($document->status === Document::STATUS_CANCELLED) {
+            return Inertia::render('PublicSign/Cancelled', [
+                'document' => $this->documentPayload($document),
+                'tenant' => $this->tenantPayload($document),
+            ]);
+        }
+
         if ($document->expires_at !== null && $document->expires_at->isPast()) {
             return Inertia::render('PublicSign/Expired', [
                 'document' => $this->documentPayload($document),

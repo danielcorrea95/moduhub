@@ -41,6 +41,7 @@ Route::middleware(['api.key', 'throttle:api'])->group(function () {
             Route::post('/documents', [ApiDocumentController::class, 'store'])->name('documents.store');
             Route::delete('/documents/{document}', [ApiDocumentController::class, 'destroy'])->name('documents.destroy');
             Route::post('/documents/{document}/send', [ApiDocumentController::class, 'send'])->name('documents.send');
+            Route::post('/documents/{document}/cancel', [ApiDocumentController::class, 'cancel'])->name('documents.cancel');
             Route::post('/documents/{document}/signers', [ApiSignerController::class, 'store'])->name('signers.store');
             Route::delete('/documents/{document}/signers/{signer}', [ApiSignerController::class, 'destroy'])->name('signers.destroy');
             Route::post('/documents/{document}/signers/{signer}/remind', [ApiSignerController::class, 'remind'])->name('signers.remind');

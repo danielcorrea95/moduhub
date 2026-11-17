@@ -15,6 +15,7 @@ class EventCatalog
                 'document.signed' => 'Um signatário assinou',
                 'document.completed' => 'Todos os signatários assinaram',
                 'document.rejected' => 'Signatário rejeitou',
+                'document.cancelled' => 'Documento cancelado antes de todos assinarem',
             ],
             Module::INVOICES => [
                 'invoice.issued' => 'NFS-e emitida com sucesso',

@@ -29,6 +29,7 @@ const NAV: DocsNavGroup[] = [
             { id: 'listar-documentos', title: 'Listar documentos' },
             { id: 'consultar-documento', title: 'Consultar documento' },
             { id: 'enviar-documento', title: 'Enviar para assinatura' },
+            { id: 'cancelar-documento', title: 'Cancelar documento' },
             { id: 'baixar-pdf', title: 'Baixar PDF' },
             { id: 'excluir-documento', title: 'Excluir rascunho' },
         ],
@@ -388,6 +389,7 @@ function exampleDocument(baseUrl: string) {
         expires_at: null,
         sent_at: '2026-10-15T17:25:04-03:00',
         completed_at: null,
+        cancelled_at: null,
         created_at: '2026-10-15T17:25:02-03:00',
         downloads: {
             original: `${baseUrl}/signatures/documents/${DOC_ID}/download?type=original`,
@@ -407,7 +409,8 @@ const DOCUMENT_FIELDS: Param[] = [
         description: (
             <>
                 <C>draft</C> rascunho, <C>sent</C> enviado e ninguém assinou, <C>partially_signed</C> parte já assinou,{' '}
-                <C>completed</C> todos assinaram, <C>rejected</C> alguém recusou.
+                <C>completed</C> todos assinaram, <C>rejected</C> alguém recusou, <C>cancelled</C> cancelado por quem enviou antes de
+                todos assinarem.
             </>
         ),
     },
@@ -426,7 +429,7 @@ const DOCUMENT_FIELDS: Param[] = [
     { name: 'signed_sha256', type: 'string | null', description: 'Hash do PDF final, preenchido quando o documento é concluído.' },
     { name: 'signers', type: 'array', description: 'Lista de signatários, na ordem de assinatura.' },
     { name: 'downloads', type: 'object', description: <>Endereços para baixar o PDF original e o PDF com assinaturas (<C>null</C> enquanto não existe).</> },
-    { name: 'sent_at, completed_at, created_at', type: 'string | null', description: 'Datas em ISO 8601.' },
+    { name: 'sent_at, completed_at, cancelled_at, created_at', type: 'string | null', description: 'Datas em ISO 8601.' },
 ];
 
 const SIGNER_INPUT: Param[] = [
@@ -705,6 +708,46 @@ export default function ApiDocs({ baseUrl, scopes, events, rateLimitPerMinute }:
                         </p>
                         <p>Exige ao menos um signatário.</p>
                     </Prose>
+                </Endpoint>
+
+                <Endpoint
+                    id="cancelar-documento"
+                    title="Cancelar documento"
+                    method="POST"
+                    path="/signatures/documents/{id}/cancel"
+                    scope="signatures:write"
+                    code={
+                        <>
+                            {S({ method: 'POST', path: `/signatures/documents/${DOC_ID}/cancel`, json: { reason: 'Proposta revista com o cliente' } })}
+                            <CodeBlock
+                                title="Resposta 200"
+                                code={json({ data: { ...doc, status: 'cancelled', cancelled_at: '2026-10-16T09:12:40-03:00', signers: '…' } })}
+                            />
+                        </>
+                    }
+                >
+                    <Prose>
+                        <p>
+                            Cancela um documento enviado que ainda espera alguém assinar (status <C>sent</C> ou <C>partially_signed</C>). Os
+                            links de assinatura deixam de funcionar, quem abrir vê que o documento foi cancelado e o evento{' '}
+                            <C>document.cancelled</C> é disparado.
+                        </p>
+                        <p>
+                            Documentos já concluídos, recusados, expirados ou ainda em rascunho não podem ser cancelados (resposta 422). Para
+                            rascunho, use <a href="#excluir-documento">Excluir rascunho</a>. As assinaturas colhidas antes do cancelamento
+                            continuam na trilha de auditoria, que passa a mostrar o documento como cancelado.
+                        </p>
+                    </Prose>
+                    <ParamTable
+                        title="Corpo"
+                        params={[
+                            {
+                                name: 'reason',
+                                type: 'string',
+                                description: 'Motivo do cancelamento, até 500 caracteres. Opcional; fica registrado na trilha e vai no webhook.',
+                            },
+                        ]}
+                    />
                 </Endpoint>
 
                 <Endpoint
@@ -1914,6 +1957,7 @@ export default function ApiDocs({ baseUrl, scopes, events, rateLimitPerMinute }:
                             { name: 'document.signed', type: 'evento', description: <><C>signer_id</C>, <C>signer_email</C>, <C>signed_at</C></> },
                             { name: 'document.completed', type: 'evento', description: <><C>completed_at</C>, <C>final_sha256</C> e <C>sealed_with_icp</C> (se o PDF final recebeu o selo ICP-Brasil da plataforma)</> },
                             { name: 'document.rejected', type: 'evento', description: <><C>signer_id</C>, <C>signer_email</C>, <C>reason</C></> },
+                            { name: 'document.cancelled', type: 'evento', description: <><C>cancelled_at</C>, <C>reason</C> (ou <C>null</C>)</> },
                         ]}
                     />
                     <ParamTable

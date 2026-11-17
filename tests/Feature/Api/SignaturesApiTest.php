@@ -167,6 +167,68 @@ class SignaturesApiTest extends TestCase
         $this->withToken($key)->deleteJson("/api/v1/signatures/documents/{$draft->getKey()}")->assertNoContent();
     }
 
+    public function test_cancels_a_document_still_waiting_for_signatures(): void
+    {
+        WebhookEndpoint::create([
+            'tenant_id' => $this->tenant->getKey(),
+            'url' => 'https://example.com/hook',
+            'secret' => 'whsec_test',
+            'events' => ['document.cancelled'],
+            'is_active' => true,
+        ]);
+
+        $doc = $this->sentDocumentWithSigners([DocumentSigner::STATUS_SIGNED, DocumentSigner::STATUS_PENDING]);
+
+        $this->withToken($this->key(['signatures:write']))
+            ->postJson("/api/v1/signatures/documents/{$doc->getKey()}/cancel", ['reason' => 'Proposta revista'])
+            ->assertOk()
+            ->assertJsonPath('data.status', Document::STATUS_CANCELLED)
+            ->assertJsonPath('data.signers.1.sign_url', null)
+            ->assertJsonPath('data.cancelled_at', fn ($v) => $v !== null);
+
+        $this->assertDatabaseHas('document_events', [
+            'document_id' => $doc->getKey(),
+            'type' => 'cancelled',
+        ]);
+        $this->assertDatabaseHas('webhook_deliveries', ['event' => 'document.cancelled']);
+    }
+
+    public function test_cannot_cancel_documents_without_pending_signers(): void
+    {
+        $key = $this->key(['signatures:write']);
+
+        foreach ([Document::STATUS_DRAFT, Document::STATUS_COMPLETED, Document::STATUS_REJECTED, Document::STATUS_CANCELLED] as $status) {
+            $doc = $this->makeDocument($this->tenant, ['status' => $status]);
+
+            $this->withToken($key)->postJson("/api/v1/signatures/documents/{$doc->getKey()}/cancel")
+                ->assertUnprocessable()
+                ->assertJsonValidationErrors('document');
+
+            $this->assertSame($status, $doc->fresh()->status);
+        }
+    }
+
+    public function test_cancel_requires_write_scope(): void
+    {
+        $doc = $this->sentDocumentWithSigners([DocumentSigner::STATUS_PENDING]);
+
+        $this->withToken($this->key(['signatures:read']))
+            ->postJson("/api/v1/signatures/documents/{$doc->getKey()}/cancel")
+            ->assertForbidden();
+    }
+
+    public function test_signer_link_shows_cancelled_page(): void
+    {
+        $doc = $this->sentDocumentWithSigners([DocumentSigner::STATUS_PENDING]);
+        $doc->update(['status' => Document::STATUS_CANCELLED, 'cancelled_at' => now()]);
+
+        $token = DocumentSigner::withoutTenantScope()->where('document_id', $doc->getKey())->value('token');
+
+        $this->withoutVite()->get(route('public-sign.show', $token))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->component('PublicSign/Cancelled'));
+    }
+
     public function test_reminds_a_pending_signer(): void
     {
         $doc = $this->makeDocument($this->tenant, ['status' => Document::STATUS_SENT]);
@@ -216,6 +278,35 @@ class SignaturesApiTest extends TestCase
             'file_size' => 10,
             'page_count' => 1,
         ], $attrs));
+    }
+
+    /** @param list<string> $statuses */
+    private function sentDocumentWithSigners(array $statuses): Document
+    {
+        Storage::fake('documents');
+        Storage::disk('documents')->put('x/original.pdf', $this->pdf());
+
+        $doc = $this->makeDocument($this->tenant, [
+            'status' => Document::STATUS_SENT,
+            'file_disk' => 'documents',
+            'file_path' => 'x/original.pdf',
+            'sent_at' => now(),
+        ]);
+
+        foreach ($statuses as $i => $status) {
+            DocumentSigner::forceCreate([
+                'tenant_id' => $this->tenant->getKey(),
+                'document_id' => $doc->getKey(),
+                'order' => $i + 1,
+                'name' => 'Signatário '.($i + 1),
+                'email' => 'signatario'.($i + 1).'@example.com',
+                'status' => $status,
+                'signed_at' => $status === DocumentSigner::STATUS_SIGNED ? now() : null,
+                'token' => Str::random(48),
+            ]);
+        }
+
+        return $doc;
     }
 
     private function pdf(): string

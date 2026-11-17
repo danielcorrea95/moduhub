@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Modules\Signatures\Contracts\DocumentRepositoryContract;
 use App\Modules\Signatures\Contracts\DocumentServiceContract;
 use App\Modules\Signatures\Contracts\DocumentSubmissionServiceContract;
+use App\Modules\Signatures\Http\Requests\Api\CancelDocumentApiRequest;
 use App\Modules\Signatures\Http\Requests\Api\ListDocumentsApiRequest;
 use App\Modules\Signatures\Http\Requests\Api\StoreDocumentApiRequest;
 use App\Modules\Signatures\Http\Resources\DocumentResource;
@@ -67,6 +68,13 @@ class DocumentController extends Controller
         $sent = $this->service->send($document, null, $request);
 
         return DocumentResource::make($sent->load('signers'));
+    }
+
+    public function cancel(CancelDocumentApiRequest $request, Document $document): DocumentResource
+    {
+        $cancelled = $this->service->cancel($document, null, $request->validated('reason'), $request);
+
+        return DocumentResource::make($cancelled->load('signers'));
     }
 
     public function download(Request $request, Document $document): StreamedResponse

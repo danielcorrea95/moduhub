@@ -18,7 +18,7 @@ class ApiDocsTest extends TestCase
                 ->component('Docs/Api')
                 ->where('baseUrl', url('/api/v1'))
                 ->where('events', fn ($events) => collect($events)->pluck('key')->sort()->values()->all() === [
-                    'document.completed', 'document.rejected', 'document.sent', 'document.signed', 'document.viewed',
+                    'document.cancelled', 'document.completed', 'document.rejected', 'document.sent', 'document.signed', 'document.viewed',
                     'invoice.cancellation_denied', 'invoice.cancelled', 'invoice.certificate_expiring', 'invoice.issued', 'invoice.received', 'invoice.rejected', 'invoice.replaced', 'invoice.taker_rejected',
                 ]));
     }

@@ -16,6 +16,8 @@ interface DocumentServiceContract
 
     public function delete(Document $document): void;
 
+    public function cancel(Document $document, ?User $actor, ?string $reason = null, ?Request $request = null): Document;
+
     public function send(Document $document, ?User $actor, ?Request $request = null): Document;
 
     public function regenerateWorkingPdf(Document $document): string;

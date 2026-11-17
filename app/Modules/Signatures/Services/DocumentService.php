@@ -194,6 +194,53 @@ class DocumentService implements DocumentServiceContract
         return $workingPath;
     }
 
+    /**
+     * Cancela um documento que ainda espera assinatura. Concluído, recusado ou expirado já tem desfecho
+     * e fica como está: as assinaturas colhidas continuam na trilha.
+     */
+    public function cancel(Document $document, ?User $actor, ?string $reason = null, ?Request $request = null): Document
+    {
+        $cancelled = DB::transaction(function () use ($document, $actor, $reason, $request) {
+            // Trava a linha: uma última assinatura chegando ao mesmo tempo concluiria o documento já cancelado.
+            $locked = Document::query()->whereKey($document->getKey())->lockForUpdate()->firstOrFail();
+
+            if (! in_array($locked->status, [Document::STATUS_SENT, Document::STATUS_PARTIALLY_SIGNED], true)) {
+                throw ValidationException::withMessages([
+                    'document' => 'Só é possível cancelar documentos enviados que ainda aguardam assinatura.',
+                ]);
+            }
+
+            $pending = $locked->signers()
+                ->whereNotIn('status', [DocumentSigner::STATUS_SIGNED, DocumentSigner::STATUS_REJECTED])
+                ->count();
+
+            $locked->update([
+                'status' => Document::STATUS_CANCELLED,
+                'cancelled_at' => now(),
+            ]);
+
+            $this->recordEvent($locked, DocumentEvent::TYPE_CANCELLED, $actor, array_filter([
+                'reason' => $reason,
+                'pending_signers' => $pending,
+            ], fn ($v) => $v !== null), null, $request);
+
+            $this->regenerateWorkingPdf($locked->fresh());
+
+            return $locked->fresh();
+        });
+
+        if ($cancelled->tenant !== null) {
+            $this->webhooks->fire($cancelled->tenant, 'document.cancelled', [
+                'document_id' => $cancelled->getKey(),
+                'external_id' => $cancelled->external_id,
+                'cancelled_at' => $cancelled->cancelled_at?->toIso8601String(),
+                'reason' => $reason,
+            ]);
+        }
+
+        return $cancelled;
+    }
+
     public function delete(Document $document): void
     {
         if (! $document->isDraft()) {
