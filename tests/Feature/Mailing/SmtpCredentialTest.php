@@ -24,7 +24,7 @@ class SmtpCredentialTest extends TestCase
     {
         parent::setUp();
 
-        config(['mail.from.address' => 'nao-responda@moduhub.com.br', 'mailing.relay.host' => 'smtp.moduhub.com.br']);
+        config(['mail.from.address' => 'nao-responda@moduhub.com.br', 'mailing.relay.host' => 'relay.moduhub.com.br']);
         [$this->tenant, $this->owner] = $this->makeTenant('Empresa X');
     }
 
@@ -56,7 +56,7 @@ class SmtpCredentialTest extends TestCase
 
         $page = $this->asOwner()->get(route('sending-domain.show'));
         $page->assertInertia(fn (Assert $p) => $p
-            ->where('smtp.host', 'smtp.moduhub.com.br')
+            ->where('smtp.host', 'relay.moduhub.com.br')
             ->where('smtp.enabled', false)
             ->where('smtp.reveal.username', $credential->username)
             ->has('smtp.credentials', 1)

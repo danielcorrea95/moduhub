@@ -5,7 +5,7 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 /**
- * Usuário e senha que o cliente coloca no sistema dele para enviar pelo smtp.moduhub.com.br.
+ * Usuário e senha que o cliente coloca no sistema dele para enviar pelo relay.moduhub.com.br.
  * A senha só existe em claro na hora de criar; aqui fica o SHA-256 (segredo aleatório de 40
  * caracteres, como as chaves de API), que o relay SMTP confere a cada AUTH.
  */

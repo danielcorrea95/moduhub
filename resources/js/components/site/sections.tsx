@@ -294,7 +294,7 @@ const SAMPLES: Record<ProductKey, { label: string; code: string }> = {
     mailing: {
         label: 'E-mail (SMTP)',
         code: `MAIL_MAILER=smtp
-MAIL_HOST=smtp.moduhub.com.br
+MAIL_HOST=relay.moduhub.com.br
 MAIL_PORT=587
 MAIL_USERNAME=mdhb_smtp_xxxxxxxx
 MAIL_PASSWORD=sua-senha-smtp

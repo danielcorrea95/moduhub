@@ -1,7 +1,7 @@
 {
   "name": "moduhub-smtp-relay",
   "private": true,
-  "description": "Servidor SMTP do relay smtp.moduhub.com.br. As regras ficam no Laravel (/api/v1/internal/smtp-relay).",
+  "description": "Servidor SMTP do relay relay.moduhub.com.br. As regras ficam no Laravel (/api/v1/internal/smtp-relay).",
   "scripts": {
     "start": "haraka -c ."
   },

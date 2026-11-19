@@ -1,6 +1,6 @@
 'use strict'
 
-// Relay smtp.moduhub.com.br. Este plugin só fala SMTP: o login e a mensagem vão para o Laravel
+// Relay relay.moduhub.com.br. Este plugin só fala SMTP: o login e a mensagem vão para o Laravel
 // (/api/v1/internal/smtp-relay), que confere credencial, domínio, cota e bloqueios e entrega ao SES.
 // Nada sai daqui direto para a internet: toda mensagem termina em OK ou recusa, nunca no outbound
 // do Haraka (porta 25 bloqueada e IP sem reputação).

@@ -28,7 +28,7 @@ return [
      */
     'relay' => [
         'enabled' => (bool) env('MAIL_RELAY_ENABLED', false),
-        'host' => env('MAIL_RELAY_HOST', 'smtp.moduhub.com.br'),
+        'host' => env('MAIL_RELAY_HOST', 'relay.moduhub.com.br'),
 
         // Segredo que o servidor SMTP (smtp-relay/) manda no header X-Relay-Secret. Vazio, os
         // endpoints internos recusam tudo.

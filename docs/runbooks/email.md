@@ -93,12 +93,14 @@ SES_CONFIGURATION_SET=moduhub-transactional
 SES_SNS_TOPIC_ARN=arn:aws:sns:sa-east-1:<conta>:moduhub-ses-events
 ```
 
-## Relay SMTP (`smtp.moduhub.com.br`)
+## Relay SMTP (`relay.moduhub.com.br`)
+
+Não é `smtp.moduhub.com.br`: esse nome (e o MX, o `pop`) é da Locaweb, onde ficam as caixas `@moduhub.com.br` da equipe. Não mexa nele.
 
 O sistema do cliente (site, ERP, outro Laravel) envia por SMTP com a credencial `mdhb_smtp_*` gerada em **Workspace → Domínio de envio → SMTP**. Nada muda na AWS por cliente: tudo sai pela mesma conta SES, com a identidade que o painel criou para o domínio dele.
 
 ```
-sistema do cliente → smtp.moduhub.com.br:587 (STARTTLS) ou :465 (TLS)
+sistema do cliente → relay.moduhub.com.br:587 (STARTTLS) ou :465 (TLS)
                      Haraka (smtp-relay/, plugin moduhub.js)
                      → POST APP_URL/api/v1/internal/smtp-relay/auth      (no AUTH)
                      → POST APP_URL/api/v1/internal/smtp-relay/messages  (no fim do DATA)
@@ -133,7 +135,7 @@ O Haraka nunca entrega direto na internet: toda mensagem termina em aceite ou re
 
 Os caminhos supõem o app em `/var/www/moduhub`.
 
-1. **DNS:** registro `A` de `smtp.moduhub.com.br` para o IP do servidor.
+1. **DNS:** registro `A` de `relay.moduhub.com.br` para o IP do servidor.
 2. **Firewall:** libere a entrada TCP **587** e **465** no `ufw` e no grupo de segurança da cloud. Não abra a 25.
 3. **Usuário do processo:** `sudo adduser --system --group --no-create-home haraka`
 4. **Dependências** (Node 20+, o mesmo do SSR):
@@ -155,11 +157,11 @@ Os caminhos supõem o app em `/var/www/moduhub`.
 6. **Certificado TLS** (Let's Encrypt). O deploy hook copia o certificado para `config/tls_*.pem` e reinicia o relay, na emissão e em cada renovação:
 
    ```bash
-   sudo certbot certonly --nginx -d smtp.moduhub.com.br \
+   sudo certbot certonly --nginx -d relay.moduhub.com.br \
      --deploy-hook /var/www/moduhub/smtp-relay/bin/install-cert.sh
    ```
 
-   Se o `--nginx` não achar onde responder o desafio, crie no nginx um `server` na porta 80 com `server_name smtp.moduhub.com.br` e rode de novo.
+   Se o `--nginx` não achar onde responder o desafio, crie no nginx um `server` na porta 80 com `server_name relay.moduhub.com.br` e rode de novo.
 
 7. **Supervisor:** copie o bloco `[program:moduhub-smtp-relay]` de [supervisor/moduhub.conf](supervisor/moduhub.conf) e rode `sudo supervisorctl reread && sudo supervisorctl update`.
 8. **Tamanho do corpo:** a mensagem vai ao Laravel em base64 (+33%). Com o limite padrão de 10 MB, o location do app no nginx precisa de `client_max_body_size 20m`, e o PHP de `post_max_size = 20M`. Confira os valores atuais antes de mudar.
@@ -168,8 +170,8 @@ Os caminhos supõem o app em `/var/www/moduhub`.
 11. **Testar:**
 
     ```bash
-    openssl s_client -starttls smtp -connect smtp.moduhub.com.br:587 -crlf -quiet   # mostra o certificado; EHLO x lista AUTH PLAIN LOGIN
-    swaks --server smtp.moduhub.com.br:587 --tls --auth LOGIN \
+    openssl s_client -starttls smtp -connect relay.moduhub.com.br:587 -crlf -quiet   # mostra o certificado; EHLO x lista AUTH PLAIN LOGIN
+    swaks --server relay.moduhub.com.br:587 --tls --auth LOGIN \
       --auth-user mdhb_smtp_... --auth-password '...' \
       --from contato@<domínio verificado> --to success@simulator.amazonses.com
     ```
@@ -185,7 +187,7 @@ Só quando algo mudou em `smtp-relay/`: `cd smtp-relay && npm ci --omit=dev && s
 ```dotenv
 MAIL_MAILER=smtp
 MAIL_SCHEME=smtp            # STARTTLS na 587; use smtps com a porta 465
-MAIL_HOST=smtp.moduhub.com.br
+MAIL_HOST=relay.moduhub.com.br
 MAIL_PORT=587
 MAIL_USERNAME=mdhb_smtp_...
 MAIL_PASSWORD=...

@@ -14,7 +14,7 @@ import type { FormEvent, ReactNode } from 'react';
 import type { EmailUsageData, SendingDomainData, SmtpData } from './types';
 import { UsageMeter } from './usage-meter';
 
-/** Credenciais e dados para o sistema do cliente enviar pelo relay smtp.moduhub.com.br. */
+/** Credenciais e dados para o sistema do cliente enviar pelo relay relay.moduhub.com.br. */
 export function SmtpAccess({ smtp, domain, usage }: { smtp: SmtpData; domain: SendingDomainData; usage: EmailUsageData }) {
     const fromAddress = `${domain.from_local_part}@${domain.domain}`;
 

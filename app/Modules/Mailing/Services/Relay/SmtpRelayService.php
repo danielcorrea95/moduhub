@@ -17,7 +17,7 @@ use Illuminate\Support\Str;
 use Throwable;
 
 /**
- * Regras do relay `smtp.moduhub.com.br`. O servidor SMTP (smtp-relay/, Haraka) só fala o
+ * Regras do relay `relay.moduhub.com.br`. O servidor SMTP (smtp-relay/, Haraka) só fala o
  * protocolo: confere o login aqui e, no fim do DATA, entrega a mensagem bruta para `relay()`.
  */
 class SmtpRelayService
