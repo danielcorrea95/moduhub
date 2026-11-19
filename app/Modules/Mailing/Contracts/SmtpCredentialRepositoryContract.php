@@ -13,6 +13,11 @@ interface SmtpCredentialRepositoryContract
 
     public function countForTenant(Tenant $tenant): int;
 
+    /** Fora do scope: o relay chega sem workspace e descobre qual é pela credencial. */
+    public function findByUsername(string $username): ?SmtpCredential;
+
+    public function markUsed(SmtpCredential $credential): void;
+
     /** @param  array<string, mixed>  $attributes */
     public function create(array $attributes): SmtpCredential;
 

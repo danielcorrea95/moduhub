@@ -4,6 +4,7 @@ use App\Modules\Invoices\Http\Controllers\Api\InvoiceController as ApiInvoiceCon
 use App\Modules\Invoices\Http\Controllers\Api\IssuerController as ApiIssuerController;
 use App\Modules\Invoices\Http\Controllers\Api\MunicipalAgreementController as ApiAgreementController;
 use App\Modules\Invoices\Http\Controllers\Api\ReceivedInvoiceController as ApiReceivedController;
+use App\Modules\Mailing\Http\Controllers\SmtpRelayController;
 use App\Modules\Signatures\Http\Controllers\Api\DocumentController as ApiDocumentController;
 use App\Modules\Signatures\Http\Controllers\Api\SignerController as ApiSignerController;
 use Illuminate\Http\Request;
@@ -79,4 +80,11 @@ Route::middleware(['api.key', 'throttle:api'])->group(function () {
             Route::post('/{invoice}/email', [ApiInvoiceController::class, 'email'])->whereUlid('invoice')->middleware('throttle:30,1')->name('email');
         });
     });
+});
+
+// Servidor SMTP do relay (smtp-relay/), na mesma máquina. Autentica pelo segredo MAIL_RELAY_SECRET
+// (RelayAuthRequest), não por chave de API; o workspace sai da credencial SMTP.
+Route::prefix('internal/smtp-relay')->name('internal.smtp-relay.')->group(function () {
+    Route::post('/auth', [SmtpRelayController::class, 'authenticate'])->name('auth');
+    Route::post('/messages', [SmtpRelayController::class, 'deliver'])->name('messages');
 });

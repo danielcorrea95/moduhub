@@ -44,7 +44,11 @@ class EmailDelivery extends Model
         'TenantInvitationMail' => 'Convite de membro',
         'CertificateExpiringMail' => 'Aviso de certificado',
         'SendingDomainTestMail' => 'Teste de envio',
+        self::ORIGIN_SMTP_RELAY => 'SMTP do cliente',
     ];
+
+    /** `mailable` das mensagens que o sistema do cliente mandou pelo relay SMTP. */
+    public const ORIGIN_SMTP_RELAY = 'smtp-relay';
 
     /**
      * Os eventos chegam fora de ordem (a reclamação pode vir antes da entrega). Um status só

@@ -93,9 +93,109 @@ SES_CONFIGURATION_SET=moduhub-transactional
 SES_SNS_TOPIC_ARN=arn:aws:sns:sa-east-1:<conta>:moduhub-ses-events
 ```
 
+## Relay SMTP (`smtp.moduhub.com.br`)
+
+O sistema do cliente (site, ERP, outro Laravel) envia por SMTP com a credencial `mdhb_smtp_*` gerada em **Workspace → Domínio de envio → SMTP**. Nada muda na AWS por cliente: tudo sai pela mesma conta SES, com a identidade que o painel criou para o domínio dele.
+
+```
+sistema do cliente → smtp.moduhub.com.br:587 (STARTTLS) ou :465 (TLS)
+                     Haraka (smtp-relay/, plugin moduhub.js)
+                     → POST APP_URL/api/v1/internal/smtp-relay/auth      (no AUTH)
+                     → POST APP_URL/api/v1/internal/smtp-relay/messages  (no fim do DATA)
+                       Laravel (SmtpRelayService) → SES → email_deliveries
+```
+
+O Haraka só fala o protocolo. As regras ficam no Laravel, nesta ordem:
+
+1. A credencial existe, a senha confere (SHA-256) e o workspace está ativo. Dez senhas erradas do mesmo IP bloqueiam o login por 5 minutos.
+2. A assinatura não está bloqueada por falta de pagamento.
+3. O workspace tem domínio de envio verificado, e o `From` (e o `Sender`, se houver) é desse domínio.
+4. Os cabeçalhos `Bcc` e `Return-Path` são removidos. O corpo segue intacto.
+5. Destinatários em `email_suppressions` são pulados. Se todos estiverem lá, a mensagem é recusada.
+6. A cota conta 1 por mensagem (`EmailQuotaService::reserve()`) e é devolvida se o SES recusar.
+7. O envio vai pelo cliente SES do mailer `ses-v2`, com o configuration set. A mensagem entra em `email_deliveries` com a origem "SMTP do cliente" e recebe os eventos como qualquer outra.
+
+O Haraka nunca entrega direto na internet: toda mensagem termina em aceite ou recusa. A porta 25 continua fechada.
+
+| Resposta ao cliente | Causa |
+|---|---|
+| `535 5.7.8` | Usuário ou senha errados, credencial revogada ou workspace inativo. |
+| `454 4.7.0 Muitas tentativas` | Dez senhas erradas do mesmo IP. Passa em 5 minutos. |
+| `454 4.7.0 Autenticação indisponível` | O Haraka não falou com o Laravel. Veja `storage/logs/smtp-relay.log`: `HTTP 403` é segredo diferente entre `.env` e `moduhub.ini`; erro de conexão é `endpoint` errado ou servidor que não alcança o próprio domínio (veja "Instalar", passo 9). |
+| `550 5.7.1 O remetente precisa ser...` | `From` fora do domínio verificado do workspace. |
+| `550 5.7.1 ... domínio de envio verificado` | O workspace não tem domínio verificado (ou ele caiu para `failed`). |
+| `550 5.4.5` | Cota do dia ou do mês esgotada. |
+| `550 5.1.1` | Todos os destinatários estão bloqueados (devolução ou spam). |
+| `554 5.7.1 Mensagem recusada pelo provedor` | O SES recusou. Com a conta no sandbox, só sai para endereço verificado. |
+| `450/451 4.3.0` | SES limitando a taxa ou fora do ar, ou o Laravel com erro. Veja `laravel.log` (`Relay SMTP: SES recusou`). O cliente tenta de novo sozinho. |
+
+### Instalar no servidor (uma vez)
+
+Os caminhos supõem o app em `/var/www/moduhub`.
+
+1. **DNS:** registro `A` de `smtp.moduhub.com.br` para o IP do servidor.
+2. **Firewall:** libere a entrada TCP **587** e **465** no `ufw` e no grupo de segurança da cloud. Não abra a 25.
+3. **Usuário do processo:** `sudo adduser --system --group --no-create-home haraka`
+4. **Dependências** (Node 20+, o mesmo do SSR):
+
+   ```bash
+   cd /var/www/moduhub/smtp-relay && npm ci --omit=dev
+   ```
+
+5. **Segredo compartilhado:** gere com `openssl rand -hex 32`.
+   - No `.env` do Laravel: `MAIL_RELAY_SECRET=<segredo>`.
+   - No relay:
+
+     ```bash
+     cd /var/www/moduhub/smtp-relay/config
+     sudo cp moduhub.ini.example moduhub.ini     # preencha endpoint e secret
+     sudo chown root:haraka moduhub.ini && sudo chmod 640 moduhub.ini
+     ```
+
+6. **Certificado TLS** (Let's Encrypt). O deploy hook copia o certificado para `config/tls_*.pem` e reinicia o relay, na emissão e em cada renovação:
+
+   ```bash
+   sudo certbot certonly --nginx -d smtp.moduhub.com.br \
+     --deploy-hook /var/www/moduhub/smtp-relay/bin/install-cert.sh
+   ```
+
+   Se o `--nginx` não achar onde responder o desafio, crie no nginx um `server` na porta 80 com `server_name smtp.moduhub.com.br` e rode de novo.
+
+7. **Supervisor:** copie o bloco `[program:moduhub-smtp-relay]` de [supervisor/moduhub.conf](supervisor/moduhub.conf) e rode `sudo supervisorctl reread && sudo supervisorctl update`.
+8. **Tamanho do corpo:** a mensagem vai ao Laravel em base64 (+33%). Com o limite padrão de 10 MB, o location do app no nginx precisa de `client_max_body_size 20m`, e o PHP de `post_max_size = 20M`. Confira os valores atuais antes de mudar.
+9. **O servidor precisa alcançar o próprio domínio:** `curl -sI https://app.moduhub.com.br/up` rodado no servidor deve responder 200. Se não responder, adicione `127.0.0.1 app.moduhub.com.br` ao `/etc/hosts`.
+10. **Ligar no painel:** `MAIL_RELAY_ENABLED=true` no `.env` e `php artisan config:cache`. A tela de SMTP deixa de mostrar "em implantação".
+11. **Testar:**
+
+    ```bash
+    openssl s_client -starttls smtp -connect smtp.moduhub.com.br:587 -crlf -quiet   # mostra o certificado; EHLO x lista AUTH PLAIN LOGIN
+    swaks --server smtp.moduhub.com.br:587 --tls --auth LOGIN \
+      --auth-user mdhb_smtp_... --auth-password '...' \
+      --from contato@<domínio verificado> --to success@simulator.amazonses.com
+    ```
+
+    A resposta final é `250 2.0.0 Mensagem aceita (<id do SES>)`, e a mensagem aparece em **E-mail → Enviados**.
+
+### No deploy
+
+Só quando algo mudou em `smtp-relay/`: `cd smtp-relay && npm ci --omit=dev && sudo supervisorctl restart moduhub-smtp-relay`. Mudança só no Laravel não exige reiniciar o relay.
+
+### Configurar no sistema do cliente
+
+```dotenv
+MAIL_MAILER=smtp
+MAIL_SCHEME=smtp            # STARTTLS na 587; use smtps com a porta 465
+MAIL_HOST=smtp.moduhub.com.br
+MAIL_PORT=587
+MAIL_USERNAME=mdhb_smtp_...
+MAIL_PASSWORD=...
+MAIL_FROM_ADDRESS="noreply@<domínio verificado>"
+```
+
 ## Testar
 
 - **Local**: o Sail sobe o Mailpit. Use `MAIL_MAILER=smtp`, `MAIL_HOST=mailpit`, `MAIL_PORT=1025` e abra http://localhost:8025. Nada vai para `email_deliveries`.
+- **Relay local**: em `smtp-relay/config/`, use `listen=127.0.0.1:2587` e `smtps_port=2465` no `smtp.ini`, tire `user`/`group`, gere um certificado autoassinado (`openssl req -x509 -newkey rsa:2048 -nodes -keyout tls_key.pem -out tls_cert.pem -days 1 -subj /CN=localhost`) e aponte `endpoint` para o app local. Depois rode `npm install && npx haraka -c .`. Não faça commit desses arquivos.
 - **Em produção, sem afetar a reputação**: mande para o simulador do SES. Cada envio é cobrado como e-mail normal.
   - `success@simulator.amazonses.com` → `delivered`
   - `bounce@simulator.amazonses.com` → `bounced`

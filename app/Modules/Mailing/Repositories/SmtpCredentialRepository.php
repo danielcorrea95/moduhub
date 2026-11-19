@@ -27,6 +27,24 @@ class SmtpCredentialRepository implements SmtpCredentialRepositoryContract
             ->count();
     }
 
+    public function findByUsername(string $username): ?SmtpCredential
+    {
+        return SmtpCredential::query()
+            ->withoutTenantScope()
+            ->with('tenant')
+            ->where('username', $username)
+            ->first();
+    }
+
+    public function markUsed(SmtpCredential $credential): void
+    {
+        // Sem `save()` no modelo: não precisa de tenant no contexto nem dispara eventos à toa.
+        SmtpCredential::query()
+            ->withoutTenantScope()
+            ->whereKey($credential->getKey())
+            ->update(['last_used_at' => now()]);
+    }
+
     public function create(array $attributes): SmtpCredential
     {
         return SmtpCredential::query()->create($attributes);

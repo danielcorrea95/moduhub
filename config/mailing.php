@@ -29,6 +29,19 @@ return [
     'relay' => [
         'enabled' => (bool) env('MAIL_RELAY_ENABLED', false),
         'host' => env('MAIL_RELAY_HOST', 'smtp.moduhub.com.br'),
+
+        // Segredo que o servidor SMTP (smtp-relay/) manda no header X-Relay-Secret. Vazio, os
+        // endpoints internos recusam tudo.
+        'secret' => env('MAIL_RELAY_SECRET'),
+
+        // O SES aceita até 50 destinatários e 40 MB por mensagem; o JSON do relay leva o MIME em
+        // base64 (+33%), e o nginx e o PHP precisam aceitar o corpo (docs/runbooks/email.md).
+        'max_recipients' => 50,
+        'max_bytes' => (int) env('MAIL_RELAY_MAX_BYTES', 10 * 1024 * 1024),
+
+        // Senha errada repetida a partir do mesmo IP: bloqueia por alguns minutos.
+        'auth_attempts' => 10,
+        'auth_decay_seconds' => 300,
         'ports' => [
             ['port' => 587, 'encryption' => 'tls', 'label' => 'STARTTLS (recomendado)'],
             ['port' => 465, 'encryption' => 'ssl', 'label' => 'SSL/TLS'],

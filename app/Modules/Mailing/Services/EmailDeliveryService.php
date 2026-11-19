@@ -32,8 +32,31 @@ class EmailDeliveryService
             return;
         }
 
-        $recipients = array_merge($message->getTo(), $message->getCc(), $message->getBcc());
         $from = $message->getFrom()[0] ?? null;
+
+        $this->record(
+            $messageId,
+            array_merge($message->getTo(), $message->getCc(), $message->getBcc()),
+            $from,
+            (string) $message->getSubject(),
+            $mailable,
+        );
+    }
+
+    /**
+     * Mensagem que o sistema do cliente mandou pelo relay SMTP. Ela não passa por um Mailable,
+     * então não há `MessageSent` para o listener; o relay chama direto.
+     *
+     * @param  list<string>  $recipients
+     */
+    public function recordRelayed(string $messageId, array $recipients, string $from, string $subject): void
+    {
+        $this->record($messageId, $recipients, $from, $subject, EmailDelivery::ORIGIN_SMTP_RELAY);
+    }
+
+    /** @param  list<Address|string>  $recipients */
+    private function record(string $messageId, array $recipients, Address|string|null $from, string $subject, ?string $mailable): void
+    {
         $sentAt = now();
 
         foreach ($recipients as $address) {
@@ -45,7 +68,7 @@ class EmailDeliveryService
                 'from_address' => $from ? $this->normalize($from) : null,
                 'provider' => MailboxProvider::fromEmail($recipient)->value,
                 'mailable' => $mailable,
-                'subject' => Str::limit((string) $message->getSubject(), 250),
+                'subject' => Str::limit($subject, 250),
                 'status' => EmailDelivery::STATUS_SENT,
                 'sent_at' => $sentAt,
             ]);

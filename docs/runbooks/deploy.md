@@ -85,7 +85,11 @@ Se a produção ainda não recebeu os commits anteriores (S3 e certificados), si
    - Se o processo cair, o site continua no ar, só que renderizado no navegador. Título, descrição e JSON-LD continuam no HTML, porque saem do Blade. O texto da página some para os robôs até o processo voltar.
    - Depois de cada `npm run build`, rode `php artisan inertia:stop-ssr`. O Supervisor sobe o processo de novo com o bundle novo.
    - Exemplo pronto para a fila e o SSR: [supervisor/moduhub.conf](supervisor/moduhub.conf). As instruções de instalação estão no topo do arquivo.
-4. **Agendador:** uma linha no cron.
+4. **Relay SMTP (Node 20+):** Haraka em `smtp-relay/`, nas portas 587 e 465, sob o Supervisor (`moduhub-smtp-relay`).
+   - Atende `smtp.moduhub.com.br` para os sistemas dos clientes e repassa cada login e mensagem ao Laravel (`/api/v1/internal/smtp-relay`).
+   - Se cair, só o envio por SMTP dos clientes para; eles recebem erro de conexão e tentam de novo.
+   - Instalação, certificado e problemas comuns: [email.md](email.md), seção "Relay SMTP".
+5. **Agendador:** uma linha no cron.
 
    ```cron
    * * * * * cd /caminho/do/moduhub && php artisan schedule:run >> /dev/null 2>&1
@@ -161,8 +165,9 @@ SES_CONFIGURATION_SET=moduhub-transactional
 SES_SNS_TOPIC_ARN=arn:aws:sns:sa-east-1:851725549821:moduhub-ses-events
 SES_IDENTITY_DRIVER=ses                   # domínio de envio dos clientes pela API do SES
 MAIL_TRACK_ENGAGEMENT=true                # só depois de marcar Opens e Clicks no configuration set
-MAIL_RELAY_ENABLED=false                  # o relay smtp.moduhub.com.br ainda não existe
+MAIL_RELAY_ENABLED=true                   # só depois de instalar o relay (email.md, "Relay SMTP")
 MAIL_RELAY_HOST=smtp.moduhub.com.br
+MAIL_RELAY_SECRET=...                     # openssl rand -hex 32; o mesmo de smtp-relay/config/moduhub.ini
 MAIL_FREE_DAILY_QUOTA=100
 MAIL_FREE_MONTHLY_QUOTA=3000
 
@@ -272,7 +277,8 @@ Depois do primeiro deploy com o módulo de e-mail:
 
 | Item | Situação |
 |---|---|
-| Relay `smtp.moduhub.com.br` | **Não existe.** As credenciais SMTP aparecem no painel com aviso de "em implantação" (`MAIL_RELAY_ENABLED=false`). A página de vendas já vende o disparo de e-mail como disponível, com exemplo de SMTP. Não cadastre plano de e-mail à venda antes de o relay entrar no ar. |
+| Relay `smtp.moduhub.com.br` | Código pronto (`smtp-relay/` e `SmtpRelayService`). Falta a instalação no servidor: DNS, firewall, certificado e Supervisor ([email.md](email.md), "Relay SMTP"). Até lá, deixe `MAIL_RELAY_ENABLED=false`. |
+| API HTTP de envio | Não existe. A cota já prevê o envio pela API, mas hoje só o relay SMTP envia. |
 | Planos de e-mail | Grade anotada (grátis, R$ 24,90, R$ 99, R$ 179, R$ 499), mas não cadastrada em `plans`/`plan_module`. Sem plano, todo workspace usa a cota grátis. |
 | Cobrança | Integrada ao Asaas. Falta validar no sandbox os pontos listados em [cobranca.md](cobranca.md) e pedir a tokenização de cartão em produção. |
 | Saída do sandbox do SES | Pedir à AWS antes de vender o disparo. |

@@ -1,0 +1,14 @@
+; Copie para config/moduhub.ini no servidor (fora do Git).
+[main]
+; APP_URL do Moduhub + /api/v1/internal/smtp-relay
+endpoint=https://app.moduhub.com.br/api/v1/internal/smtp-relay
+; Igual ao MAIL_RELAY_SECRET do .env do Laravel
+secret=
+
+; AUTH só depois do STARTTLS. Desligue apenas para teste local.
+require_tls=true
+
+; Entregas simultâneas ao Laravel (cada uma ocupa um worker do PHP-FPM).
+max_inflight=3
+max_recipients=50
+timeout_ms=60000
